@@ -16,7 +16,7 @@ async def main():
     tsp = await TSPClient.from_stdio(GTSP_PATH).start()
     adapter = tsp.for_openai()
     llm = OpenAI()
-    messages = [{"role": "system", "content": "我会给你任务，请用中文回复。"}]
+    messages = [{"role": "system", "content": "You are a helpful assistant."}]
 
     # 交互循环
     while True:

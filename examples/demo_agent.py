@@ -24,7 +24,7 @@ async def main():
         if not content: continue
         messages.append({"role": "user", "content": content})
 
-        # 执行直到 agent 不再调用工具
+        # 执行直到所有工具调用完成
         while True:
             resp = llm.chat.completions.create(model="gpt-4o-mini", messages=messages, tools=adapter.tools)
             messages.append(resp.choices[0].message)

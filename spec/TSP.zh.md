@@ -1,6 +1,6 @@
 # 工具服务协议 (TSP)
 
-**版本:** 0.3  |  **参考实现:** [gTSP](https://github.com/alexazhou/gTSP)
+**版本:** 0.3  |  **参考实现:** [gTSP](https://github.com/alexazhou/TSP/tree/master/gtsp)
 
 ---
 

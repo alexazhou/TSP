@@ -1,6 +1,6 @@
 # pyTSPClient
 
-A lightweight Python client for the **Tool Server Protocol (TSP)**. It provides a simple, asynchronous way to interact with tool servers (like [gtsp](https://github.com/alexazhou/gTSP/tree/main/src/gtsp)) via the `stdio` mode.
+A lightweight Python client for the **Tool Server Protocol (TSP)**. It provides a simple, asynchronous way to interact with tool servers (like [gtsp](https://github.com/alexazhou/TSP/tree/master/gtsp)) via the `stdio` mode.
 
 ## Features
 
@@ -20,8 +20,8 @@ pip install pytspclient
 ### For Developers (Editable Mode)
 If you are developing locally:
 ```bash
-git clone https://github.com/alexazhou/gTSP.git
-cd gTSP/pyTSPClient
+git clone https://github.com/alexazhou/TSP.git
+cd TSP/client/pytspclient
 pip install -e .
 ```
 

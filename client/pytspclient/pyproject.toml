@@ -19,5 +19,5 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-"Homepage" = "https://github.com/alexazhou/pyTSPClient"
-"Bug Tracker" = "https://github.com/alexazhou/pyTSPClient/issues"
+"Homepage" = "https://github.com/alexazhou/TSP"
+"Bug Tracker" = "https://github.com/alexazhou/TSP/issues"

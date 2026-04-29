@@ -33,16 +33,16 @@ TSP/
 
 | Tag 前缀 | 触发动作 |
 |---|---|
-| `pytspclient-v*` | 构建 gtsp + 发布 pytspclient 到 PyPI + 创建 GitHub Release |
-| `gtsp-v*` | 仅构建 gtsp + 创建 GitHub Release |
+| `pytspclient-v*` | 发布 pytspclient 到 PyPI |
+| `gtsp-v*` | 构建 gtsp + 创建 GitHub Release |
 
 示例：
 ```bash
-# 发布 pytspclient（会同时构建 gtsp）
+# 发布 pytspclient
 git tag pytspclient-v0.2.1
 git push origin pytspclient-v0.2.1
 
-# 仅发布 gtsp
+# 发布 gtsp
 git tag gtsp-v0.3.0
 git push origin gtsp-v0.3.0
 ```

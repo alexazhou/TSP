@@ -1,9 +1,8 @@
-name: Build and Release
+name: Build and Release gtsp
 
 on:
   push:
     tags:
-      - 'pytspclient-v*'
       - 'gtsp-v*'
 
 jobs:
@@ -52,7 +51,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          merge-multiple: false
 
       - name: Prepare release assets
         run: |
@@ -67,30 +65,3 @@ jobs:
         with:
           files: release/*
           generate_release_notes: true
-
-  publish-pytspclient:
-    name: Publish pytspclient to PyPI
-    needs: create-release
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/pytspclient-v')
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install build tools
-        run: pip install build twine
-
-      - name: Build package
-        working-directory: client/pytspclient
-        run: python -m build
-
-      - name: Publish to PyPI
-        working-directory: client/pytspclient
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: twine upload dist/*

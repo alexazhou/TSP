@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'pytspclient-v*'
+      - 'gtsp-v*'
 
 jobs:
   build-gtsp:
@@ -69,7 +70,9 @@ jobs:
 
   publish-pytspclient:
     name: Publish pytspclient to PyPI
+    needs: create-release
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/pytspclient-v')
 
     steps:
       - uses: actions/checkout@v4

@@ -29,6 +29,20 @@ TSP/
 
 ## CI/CD
 
-- 推送 `pytspclient-v*` tag 触发构建和发布
-- 自动构建 gtsp（Linux/macOS/Windows）
-- 自动发布 pytspclient 到 PyPI
+### Tag 前缀说明
+
+| Tag 前缀 | 触发动作 |
+|---|---|
+| `pytspclient-v*` | 构建 gtsp + 发布 pytspclient 到 PyPI + 创建 GitHub Release |
+| `gtsp-v*` | 仅构建 gtsp + 创建 GitHub Release |
+
+示例：
+```bash
+# 发布 pytspclient（会同时构建 gtsp）
+git tag pytspclient-v0.2.1
+git push origin pytspclient-v0.2.1
+
+# 仅发布 gtsp
+git tag gtsp-v0.3.0
+git push origin gtsp-v0.3.0
+```

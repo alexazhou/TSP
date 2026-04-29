@@ -7,14 +7,13 @@ gtsp 极简 Demo：用 10 行代码让 agent 获得完整的工具能力。
 
 前置条件：
     pip install pytspclient
-    gtsp 二进制文件在 PATH 中，或设置 GTSP_PATH 环境变量
+    gtsp 二进制文件放在当前目录，或修改 GTSP_PATH 变量指向实际路径
 """
 
 import asyncio
-import os
 from pytspclient import TSPClient
 
-GTSP_PATH = os.environ.get("GTSP_PATH", "gtsp")
+GTSP_PATH = "./gtsp"  # 替换为实际路径，如 "/path/to/gtsp"
 
 
 async def main():

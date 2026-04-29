@@ -2,7 +2,7 @@
 """交互式 agent demo。
 
 pip install pytspclient openai
-export OPENAI_API_KEY GTSP_PATH
+export OPENAI_API_KEY
 python examples/demo_agent.py
 """
 
@@ -10,8 +10,10 @@ import asyncio
 from pytspclient import TSPClient
 from openai import OpenAI
 
+GTSP_PATH = "./gtsp"  # 替换为实际路径
+
 async def main():
-    tsp = await TSPClient.from_stdio("gtsp").start()
+    tsp = await TSPClient.from_stdio(GTSP_PATH).start()
     adapter = tsp.for_openai()
     llm = OpenAI()
     messages = [{"role": "system", "content": "我会给你任务，请用中文回复。"}]

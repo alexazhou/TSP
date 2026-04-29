@@ -32,8 +32,8 @@ pip install pytspclient openai
 # 配置环境变量
 export OPENAI_API_KEY=your-key
 export OPENAI_BASE_URL=https://api.openai.com/v1  # 或其他兼容的 API 地址
-export GTSP_PATH=/path/to/gtsp
 
+# 将 gtsp 放到当前目录，或修改 demo 文件中的 GTSP_PATH 变量指向实际路径
 python examples/demo_basic.py
 python examples/demo_agent.py
 ```

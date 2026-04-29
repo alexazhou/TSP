@@ -19,8 +19,11 @@ TSP/
 ├── client/            # 客户端实现
 │   └── pytspclient/   # Python 客户端
 │       ├── pytspclient/
-│       ├── examples/
 │       └ README.md
+│
+├── examples/          # 示例代码
+│   ├── demo_basic.py
+│   └── demo_agent.py
 │
 └── tsp_gui_tester/    # GUI 测试工具
 ```

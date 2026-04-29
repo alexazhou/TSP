@@ -1,6 +1,6 @@
 # TSP - Tool Service Protocol
 
-**Version:** 0.3  |  **Reference Implementation:** [gTSP](https://github.com/alexazhou/TSP/tree/master/gtsp)
+[中文版](README.zh.md)  |  **Version:** 0.3  |  **Reference Implementation:** [gTSP](https://github.com/alexazhou/TSP/tree/master/gtsp)
 
 ---
 

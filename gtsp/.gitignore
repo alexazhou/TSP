@@ -1,0 +1,26 @@
+# Binaries
+/gtsp
+
+# Python venv
+.venv/
+
+# External/Linked docs
+code_and_design/
+
+# Go
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+dist/
+
+# Python cache
+__pycache__/
+
+# Claude local settings
+.claude/

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytspclient"
+version = "0.1.1"
+authors = [
+  { name="AlexaZhou", email="AlexaZhou@163.com" },
+]
+description = "A Python client for Tool Server Protocol (TSP)"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = []
+
+[project.urls]
+"Homepage" = "https://github.com/alexazhou/pyTSPClient"
+"Bug Tracker" = "https://github.com/alexazhou/pyTSPClient/issues"

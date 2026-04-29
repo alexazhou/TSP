@@ -1,0 +1,93 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-gtsp:
+    name: Build gtsp for ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: linux-amd64
+            runner: ubuntu-latest
+            output: gtsp
+          - os: darwin-amd64
+            runner: macos-latest
+            output: gtsp
+          - os: windows-amd64
+            runner: windows-latest
+            output: gtsp.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build
+        working-directory: gtsp/src
+        run: go build -ldflags="-s -w" -o ${{ matrix.output }} main.go
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtsp-${{ matrix.os }}
+          path: gtsp/src/${{ matrix.output }}
+
+  create-release:
+    name: Create Release
+    needs: build-gtsp
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          mv artifacts/gtsp-linux-amd64/gtsp release/gtsp-linux-amd64
+          mv artifacts/gtsp-darwin-amd64/gtsp release/gtsp-darwin-amd64
+          mv artifacts/gtsp-windows-amd64/gtsp.exe release/gtsp-windows-amd64.exe
+          chmod +x release/gtsp-linux-amd64 release/gtsp-darwin-amd64
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+          generate_release_notes: true
+
+  publish-pytspclient:
+    name: Publish pytspclient to PyPI
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build package
+        working-directory: client/pytspclient
+        run: python -m build
+
+      - name: Publish to PyPI
+        working-directory: client/pytspclient
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*

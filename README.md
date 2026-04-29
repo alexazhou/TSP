@@ -4,7 +4,7 @@
 
 ---
 
-TSP (Tool Service Protocol) defines a standard communication protocol for exposing local system operations (file I/O, shell execution, search, etc.) to AI agents and Large Language Models (LLMs).
+TSP defines a standardized protocol that completely decouples tool capabilities from agent business code. It also provides a standard, efficient, cross-platform tool implementation, enabling you to build an autonomous agent in just 10 lines of code.
 
 This repository includes:
 - **TSP Protocol Specification** — Protocol definition and detailed documentation (English/Chinese)
@@ -17,7 +17,7 @@ This repository includes:
 
 ### The m×n Problem
 
-Without a standard protocol, every AI agent that needs system tools must implement them itself. If there are **m** agents and **n** tools, that's **m×n** independent implementations—each with its own development cost, bugs, and difficulty achieving optimal quality.
+Without a standard protocol, every AI agent that needs system tools must implement them itself. If there are **m** agents and **n** tools, that's **m×n** independent implementations—each with its own development cost, bugs, and tool logic tightly coupled with agent code, making maintenance difficult.
 
 ```
 Without TSP                       With TSP

@@ -1,4 +1,4 @@
-# TSP Specification
+# TSP Protocol
 
 **Version:** 0.3  |  **Status:** Draft
 

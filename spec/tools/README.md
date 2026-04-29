@@ -19,14 +19,14 @@ gTSP ships with the following built-in tools. Each tool is registered as a TSP m
 
 ### Path Parameters
 
-All tools that accept file paths enforce the [workspace sandbox](../Specification.md#5-security-model). Paths may be:
+All tools that accept file paths enforce the [workspace sandbox](../Protocol.md#5-security-model). Paths may be:
 
 - **Relative** — resolved relative to the workspace root.
 - **Absolute** — must fall within the workspace root.
 
 ### Error Handling
 
-All tools return an [Error Response](../Specification.md#26-error-response) on failure. Common errors:
+All tools return an [Error Response](../Protocol.md#26-error-response) on failure. Common errors:
 
 | Condition | Error message |
 |---|---|

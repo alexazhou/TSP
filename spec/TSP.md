@@ -75,9 +75,8 @@ TSP breaks the m×n matrix into **m+n**: each agent implements the TSP client pr
 
 ## Table of Contents
 
-- [**Specification**](./Specification.md) — Base protocol, message format, transport layers, lifecycle, and tool invocation API
+- [**Protocol**](./Protocol.md) — Base protocol, message format, transport layers, lifecycle, and tool invocation API
 - [**Built-in Tools Reference**](./tools/README.md) — Complete reference for all tools shipped with gTSP
-- [**gTSP Implementation Guide**](./impl/gtsp.md) — The reference implementation: a zero-dependency, cross-platform single-binary written in Go with minimal resource footprint.
 
 ## Protocol at a Glance
 

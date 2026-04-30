@@ -13,9 +13,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build gtsp binary
+        working-directory: gtsp/src
+        run: go build -ldflags="-s -w" -o ../dist/gtsp-linux-amd64 main.go
+
+      - name: Test gtsp
+        working-directory: gtsp
+        run: ./dist/gtsp-linux-amd64 --help
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install pytest pytest-asyncio
+
+      - name: Run pytspclient tests
+        working-directory: client/pytspclient
+        env:
+          GTSP_PATH: ../../gtsp/dist/gtsp-linux-amd64
+        run: python -m pytest tests/ -v
 
       - name: Install build tools
         run: pip install build twine

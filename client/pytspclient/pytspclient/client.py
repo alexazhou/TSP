@@ -241,12 +241,12 @@ class TSPClient:
     # Adapter 工厂方法
     # ─────────────────────────────────────────────────────────────────────────
 
-    def for_anthropic(self) -> "AnthropicAdapter":
+    def for_anthropic(self) -> "TspAnthropicAdapter":
         """创建 Anthropic Adapter。"""
-        from .adapters.anthropic import AnthropicAdapter
-        return AnthropicAdapter(self)
+        from .adapters.anthropic import TspAnthropicAdapter
+        return TspAnthropicAdapter(self)
 
-    def for_openai(self) -> "OpenAIAdapter":
+    def for_openai(self) -> "TspOpenAIAdapter":
         """创建 OpenAI Adapter。"""
-        from .adapters.openai import OpenAIAdapter
-        return OpenAIAdapter(self)
+        from .adapters.openai import TspOpenAIAdapter
+        return TspOpenAIAdapter(self)

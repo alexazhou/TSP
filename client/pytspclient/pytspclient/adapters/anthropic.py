@@ -6,7 +6,7 @@ from .base import LLMAdapter
 from ..types import ToolCall, ToolResult
 
 
-class AnthropicAdapter(LLMAdapter):
+class TspAnthropicAdapter(LLMAdapter):
     """Anthropic Claude API Adapter。
 
     TSP schema 就是 Anthropic 格式，零转换。

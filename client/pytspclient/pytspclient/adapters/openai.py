@@ -7,7 +7,7 @@ from .base import LLMAdapter
 from ..types import ToolCall, ToolResult
 
 
-class OpenAIAdapter(LLMAdapter):
+class TspOpenAIAdapter(LLMAdapter):
     """OpenAI Chat Completions API Adapter。"""
 
     @property

@@ -6,7 +6,7 @@ from .types import (
     TSPInitializeResult, TSPToolResponse, TSPToolDefinition, TSPCapabilities,
     ToolCall, ToolResult,
 )
-from .adapters import LLMAdapter, AnthropicAdapter, OpenAIAdapter
+from .adapters import LLMAdapter, TspAnthropicAdapter, TspOpenAIAdapter
 
 __version__ = "0.2.0"
 __all__ = [
@@ -14,5 +14,5 @@ __all__ = [
     "TSPRequest", "TSPResponse", "TSPEvent", "TSPException",
     "TSPInitializeResult", "TSPToolResponse", "TSPToolDefinition", "TSPCapabilities",
     "ToolCall", "ToolResult",
-    "LLMAdapter", "AnthropicAdapter", "OpenAIAdapter",
+    "LLMAdapter", "TspAnthropicAdapter", "TspOpenAIAdapter",
 ]

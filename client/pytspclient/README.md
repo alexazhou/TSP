@@ -10,15 +10,19 @@ pip install pytspclient
 
 ## 使用方式
 
-### 一、Raw API — 直接调用工具
+### 一、Normal API — 普通场景使用
 
-不涉及 LLM，直接调用 TSP 工具。
+自己构建参数来调用工具。完整示例见 [demo_basic.py](../../examples/demo_basic.py)。
 
 ```python
 from pytspclient import TSPClient
 
 # 启动并初始化
 tsp = await TSPClient.from_stdio("./gtsp").start()
+
+# 获取 TSP 信息
+print(tsp.tools)    # 工具 Schema 列表
+print(tsp.workdir)  # TSP 工作目录
 
 # 调用工具
 result = await tsp.call_tool("read_file", {"file_path": "hello.txt"})
@@ -28,9 +32,9 @@ print(result.output)
 await tsp.shutdown()
 ```
 
-### 二、Adapter — 对接 LLM Agent
+### 二、Adapter API — 直接对接 LLM 使用
 
-让 LLM 自动调用工具。
+使用 LLM 返回的对象，直接对接 TSP。完整示例见 [demo_agent.py](../../examples/demo_agent.py)。
 
 ```python
 from pytspclient import TSPClient

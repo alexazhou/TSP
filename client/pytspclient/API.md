@@ -13,6 +13,13 @@ TSPClient.from_stdio(command: str, request_timeout_sec: int = 30) -> TSPClient
 ```
 Factory method. Start TSP server from command.
 
+### Properties
+
+```python
+tsp.tools: List[dict]    # Tool schemas (Anthropic format)
+tsp.workdir: str         # TSP working directory
+```
+
 ### Methods
 
 ```python
@@ -30,13 +37,6 @@ await tsp.shutdown()
 ```
 Close connection gracefully.
 
-### Properties
-
-```python
-tsp.tools: List[dict]    # Tool schemas (Anthropic format)
-tsp.workdir: str         # TSP working directory
-```
-
 ---
 
 ## Adapter
@@ -44,8 +44,8 @@ tsp.workdir: str         # TSP working directory
 Create adapter for LLM integration.
 
 ```python
-tsp.for_openai() -> OpenAIAdapter
-tsp.for_anthropic() -> AnthropicAdapter
+tsp.for_openai() -> TspOpenAIAdapter
+tsp.for_anthropic() -> TspAnthropicAdapter
 ```
 
 ### Methods

@@ -1,7 +1,7 @@
 """LLM Adapter 导出"""
 
 from .base import LLMAdapter
-from .anthropic import AnthropicAdapter
-from .openai import OpenAIAdapter
+from .anthropic import TspAnthropicAdapter
+from .openai import TspOpenAIAdapter
 
-__all__ = ["LLMAdapter", "AnthropicAdapter", "OpenAIAdapter"]
+__all__ = ["LLMAdapter", "TspAnthropicAdapter", "TspOpenAIAdapter"]

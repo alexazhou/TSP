@@ -13,6 +13,13 @@ TSPClient.from_stdio(command: str, request_timeout_sec: int = 30) -> TSPClient
 ```
 工厂方法。从命令启动 TSP 服务器。
 
+### 属性
+
+```python
+tsp.tools: List[dict]    # 工具 Schema（Anthropic 格式）
+tsp.workdir: str         # TSP 工作目录
+```
+
 ### 方法
 
 ```python
@@ -30,13 +37,6 @@ await tsp.shutdown()
 ```
 优雅关闭连接。
 
-### 属性
-
-```python
-tsp.tools: List[dict]    # 工具 Schema（Anthropic 格式）
-tsp.workdir: str         # TSP 工作目录
-```
-
 ---
 
 ## Adapter
@@ -44,8 +44,8 @@ tsp.workdir: str         # TSP 工作目录
 创建适配器对接 LLM。
 
 ```python
-tsp.for_openai() -> OpenAIAdapter
-tsp.for_anthropic() -> AnthropicAdapter
+tsp.for_openai() -> TspOpenAIAdapter
+tsp.for_anthropic() -> TspAnthropicAdapter
 ```
 
 ### 方法

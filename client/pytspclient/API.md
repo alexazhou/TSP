@@ -1,115 +1,74 @@
-# pyTSPClient API Reference
+# API Reference
 
 [中文版](API.zh.md)
 
 ---
 
-## 1. Using Raw API
+## TSPClient
 
-Call TSP tools directly, without LLM.
-
-### Create Client
+### Constructor
 
 ```python
-from pytspclient import TSPClient
-
-# Factory method
-tsp = TSPClient.from_stdio("./gtsp")
-
-# Chain call: connect + initialize
-await tsp.start()
+TSPClient.from_stdio(command: str, request_timeout_sec: int = 30) -> TSPClient
 ```
+Factory method. Start TSP server from command.
 
-### Call Tools
+### Methods
 
 ```python
-# Read file
-result = await tsp.call_tool("read_file", {"file_path": "hello.txt"})
-print(result.output)
-
-# Write file
-await tsp.call_tool("write_file", {"file_path": "output.txt", "content": "Hello"})
-
-# Execute command
-result = await tsp.call_tool("execute_bash", {"command": "ls -la"})
+await tsp.start() -> TSPClient
 ```
+Connect + initialize. Returns self for chaining.
 
-### Close Connection
+```python
+await tsp.call_tool(name: str, input: dict) -> ToolResult
+```
+Execute tool on server.
 
 ```python
 await tsp.shutdown()
 ```
-
-### TSPClient Methods
-
-| Method | Description |
-|------|------|
-| `from_stdio(command)` | Factory method, start TSP server from command |
-| `start()` | Connect + initialize, returns self |
-| `call_tool(name, params)` | Call tool, returns ToolResult |
-| `shutdown()` | Close connection |
+Close connection gracefully.
 
 ### Properties
 
-| Property | Description |
-|------|------|
-| `tools` | Tool schema list (Anthropic format) |
-| `workdir` | TSP working directory |
+```python
+tsp.tools: List[dict]    # Tool schemas (Anthropic format)
+tsp.workdir: str         # TSP working directory
+```
 
 ---
 
-## 2. Using Adapter
+## Adapter
 
-Integrate with LLM, let Agent call tools automatically.
-
-### Create Adapter
+Create adapter for LLM integration.
 
 ```python
-tsp = await TSPClient.from_stdio("./gtsp").start()
-
-# OpenAI format
-adapter = tsp.for_openai()
-
-# Anthropic format
-adapter = tsp.for_anthropic()
+tsp.for_openai() -> OpenAIAdapter
+tsp.for_anthropic() -> AnthropicAdapter
 ```
 
-### Full Agent Example
+### Methods
 
 ```python
-from pytspclient import TSPClient
-from openai import OpenAI
-
-tsp = await TSPClient.from_stdio("./gtsp").start()
-adapter = tsp.for_openai()
-llm = OpenAI()
-messages = [{"role": "system", "content": "You are a helpful assistant."}]
-
-# User input
-messages.append({"role": "user", "content": "Read hello.txt file"})
-
-# Agent loop
-while True:
-    resp = llm.chat.completions.create(model="gpt-4o", messages=messages, tools=adapter.tools)
-    messages.append(resp.choices[0].message)
-
-    calls = adapter.parse_tool_calls(resp)
-    if calls:
-        results = await adapter.execute_tool_calls(resp)
-        messages.extend(adapter.to_tool_messages(results))
-    else:
-        print(resp.choices[0].message.content)
-        break
+adapter.tools: List[dict]
 ```
+Tool schemas in LLM API format.
 
-### Adapter Methods
+```python
+adapter.parse_tool_calls(response) -> List[ToolCall]
+```
+Extract tool calls from LLM response.
 
-| Method | Description |
-|------|------|
-| `tools` | Return tool schema, pass directly to LLM |
-| `parse_tool_calls(resp)` | Parse tool calls from LLM response |
-| `execute_tool_calls(resp)` | Execute tool calls, return results |
-| `to_tool_messages(results)` | Convert results to LLM message format |
+```python
+await adapter.execute_tool_calls(response) -> List[ToolResult]
+```
+Execute all tool calls via TSP.
+
+```python
+adapter.to_tool_messages(results) -> List[dict]
+```
+Convert results to LLM message format.
 
 ---
 
@@ -117,19 +76,19 @@ while True:
 
 ### ToolResult
 
-| Field | Description |
-|------|------|
-| `call_id` | Tool call ID |
-| `name` | Tool name |
-| `output` | Execution result (JSON string) |
+| Field | Type | Description |
+|-------|------|-------------|
+| `call_id` | str | Tool call ID |
+| `name` | str | Tool name |
+| `output` | str | Result (JSON string) |
 
 ### ToolCall
 
-| Field | Description |
-|------|------|
-| `id` | LLM assigned call ID |
-| `name` | Tool name |
-| `input` | Tool parameters |
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | str | LLM assigned ID |
+| `name` | str | Tool name |
+| `input` | dict | Tool parameters |
 
 ---
 
@@ -137,7 +96,7 @@ while True:
 
 ### TSPException
 
-| Field | Description |
-|------|------|
-| `code` | Error code (e.g. `resource/not_found`) |
-| `message` | Error message |
+| Field | Type | Description |
+|-------|------|-------------|
+| `code` | str | Error code (e.g. `resource/not_found`) |
+| `message` | str | Error message |

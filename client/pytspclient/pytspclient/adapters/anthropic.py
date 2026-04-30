@@ -17,7 +17,7 @@ class TspAnthropicAdapter(LLMAdapter):
         """直接返回 TSP 原始 schema（Anthropic 格式）。"""
         return [t.to_dict() for t in self.tsp.tools]
 
-    def parse_tool_calls(self, response: Any) -> List[ToolCall]:
+    def parse_tool_calls(self, response: "anthropic.types.Message") -> List[ToolCall]:
         """从 Anthropic Messages API 响应中提取 tool_use blocks。"""
         return [
             ToolCall(id=b.id, name=b.name, input=b.input)
@@ -25,7 +25,7 @@ class TspAnthropicAdapter(LLMAdapter):
             if hasattr(b, "type") and b.type == "tool_use"
         ]
 
-    def get_text(self, response: Any) -> str:
+    def get_text(self, response: "anthropic.types.Message") -> str:
         """提取 text block 内容。"""
         for b in response.content:
             if hasattr(b, "type") and b.type == "text":

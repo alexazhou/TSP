@@ -25,7 +25,7 @@ class TspOpenAIAdapter(LLMAdapter):
             for t in self.tsp.tools
         ]
 
-    def parse_tool_calls(self, response: Any) -> List[ToolCall]:
+    def parse_tool_calls(self, response: "openai.types.chat.ChatCompletion") -> List[ToolCall]:
         """从 OpenAI ChatCompletion 响应中提取 tool_calls。"""
         calls = response.choices[0].message.tool_calls or []
         return [
@@ -37,7 +37,7 @@ class TspOpenAIAdapter(LLMAdapter):
             for c in calls
         ]
 
-    def get_text(self, response: Any) -> str:
+    def get_text(self, response: "openai.types.chat.ChatCompletion") -> str:
         """提取 message content。"""
         return response.choices[0].message.content or ""
 

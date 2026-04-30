@@ -62,13 +62,23 @@ jobs:
       - name: Prepare release assets
         run: |
           cd release
-          # Move files from nested artifact directories to current directory
+          # Artifact directories have same name as files inside them
+          # Move files out by going into each directory first
           for dir in */; do
             if [ -d "$dir" ]; then
-              # Move all files from subdirectory to current directory
-              find "$dir" -type f -exec mv -v {} . \;
-              # Remove the now-empty subdirectory
-              rmdir "$dir" 2>/dev/null || rm -rf "$dir"
+              # Get the files inside the directory
+              files=$(find "$dir" -type f)
+              for f in $files; do
+                # Rename to avoid conflict with directory name during move
+                filename=$(basename "$f")
+                mv "$f" "./${filename}.tmp"
+              done
+              # Now safe to remove the directory
+              rm -rf "$dir"
+              # Rename back to original name
+              for tmpfile in *.tmp; do
+                mv "$tmpfile" "${tmpfile%.tmp}"
+              done
             fi
           done
           chmod +x gtsp-linux-* gtsp-darwin-* || true

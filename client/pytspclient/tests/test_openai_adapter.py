@@ -46,10 +46,10 @@ class MockOpenAIResponse:
 # Tests
 # ─────────────────────────────────────────────────────────────────────────────
 
+@pytest.mark.asyncio(loop_scope="class")
 class TestOpenAIAdapter(TSPTestCase):
     """OpenAI Adapter 测试"""
 
-    @pytest.mark.asyncio
     async def test_tools_format(self):
         """测试 tools 格式转换"""
         adapter = self.client.for_openai()
@@ -61,7 +61,6 @@ class TestOpenAIAdapter(TSPTestCase):
             assert t["function"]["name"]
             assert "parameters" in t["function"]
 
-    @pytest.mark.asyncio
     async def test_parse_tool_calls(self):
         """测试解析 tool_calls"""
         adapter = self.client.for_openai()
@@ -89,7 +88,6 @@ class TestOpenAIAdapter(TSPTestCase):
         assert calls[0].name == "read_file"
         assert calls[0].input == {"file_path": "test.txt"}
 
-    @pytest.mark.asyncio
     async def test_execute_tool_calls(self):
         """测试执行 tool_calls"""
         adapter = self.client.for_openai()
@@ -125,7 +123,6 @@ class TestOpenAIAdapter(TSPTestCase):
         # 清理
         await self.cleanup_file("test_adapter.txt")
 
-    @pytest.mark.asyncio
     async def test_to_tool_messages(self):
         """测试转换 tool messages"""
         adapter = self.client.for_openai()
@@ -139,7 +136,6 @@ class TestOpenAIAdapter(TSPTestCase):
         assert messages[0]["tool_call_id"] == "call-1"
         assert messages[1]["tool_call_id"] == "call-2"
 
-    @pytest.mark.asyncio
     async def test_get_text(self):
         """测试提取文本"""
         adapter = self.client.for_openai()

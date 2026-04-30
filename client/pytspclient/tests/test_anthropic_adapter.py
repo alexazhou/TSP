@@ -36,10 +36,10 @@ class MockAnthropicResponse:
 # Tests
 # ─────────────────────────────────────────────────────────────────────────────
 
+@pytest.mark.asyncio(loop_scope="class")
 class TestAnthropicAdapter(TSPTestCase):
     """Anthropic Adapter 测试"""
 
-    @pytest.mark.asyncio
     async def test_tools_format(self):
         """测试 tools 格式"""
         adapter = self.client.for_anthropic()
@@ -50,7 +50,6 @@ class TestAnthropicAdapter(TSPTestCase):
             assert "description" in t
             assert "input_schema" in t
 
-    @pytest.mark.asyncio
     async def test_parse_tool_calls(self):
         """测试解析 tool_use"""
         adapter = self.client.for_anthropic()
@@ -71,7 +70,6 @@ class TestAnthropicAdapter(TSPTestCase):
         assert calls[0].name == "read_file"
         assert calls[0].input == {"file_path": "test.txt"}
 
-    @pytest.mark.asyncio
     async def test_execute_tool_calls(self):
         """测试执行 tool_calls"""
         adapter = self.client.for_anthropic()
@@ -99,7 +97,6 @@ class TestAnthropicAdapter(TSPTestCase):
         # 清理
         await self.cleanup_file("test_anthropic.txt")
 
-    @pytest.mark.asyncio
     async def test_to_tool_messages(self):
         """测试转换 tool messages"""
         adapter = self.client.for_anthropic()
@@ -112,7 +109,6 @@ class TestAnthropicAdapter(TSPTestCase):
         assert message["content"][0]["type"] == "tool_result"
         assert message["content"][0]["tool_use_id"] == "toolu-1"
 
-    @pytest.mark.asyncio
     async def test_get_text(self):
         """测试提取文本"""
         adapter = self.client.for_anthropic()

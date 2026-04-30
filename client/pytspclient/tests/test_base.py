@@ -1,11 +1,10 @@
-"""测试基类：管理 TSPClient 生命周期"""
+"""测试基类"""
 
 import os
 import platform
-import pytest
+import asyncio
 import pytest_asyncio
 from pytspclient import TSPClient, ToolCall
-
 
 _arch = platform.machine()
 if _arch == "arm64":
@@ -15,26 +14,21 @@ else:
 
 
 class TSPTestCase:
-    """TSP 测试基类：通过 autouse fixture 管理 TSPClient 生命周期
+    """TSP 测试基类：setup_class 方式构建 client
 
-    子类直接通过 self.client 访问，测试方法不需要显式传 fixture 参数。
+    由于 TSPClient 有后台 _read_task 需要持续运行，
+    使用 pytest_asyncio.fixture(scope="class") 来管理生命周期，
+    配合 loop_scope="class" 让 fixture 和测试方法共享同一个 event loop。
     """
 
-    _client: TSPClient = None
+    client: TSPClient = None
 
-    @pytest_asyncio.fixture(autouse=True)
-    async def _setup_tsp_client(self):
-        """自动为每个测试方法创建/销毁 TSPClient"""
-        self._client = await TSPClient.from_stdio(GTSP_PATH).start()
+    @pytest_asyncio.fixture(scope="class", autouse=True)
+    async def _tsp_setup_teardown(self):
+        """类级别 fixture：模拟 setup_class/teardown_class"""
+        TSPTestCase.client = await TSPClient.from_stdio(GTSP_PATH).start()
         yield
-        if self._client:
-            await self._client.shutdown()
-            self._client = None
-
-    @property
-    def client(self) -> TSPClient:
-        """子类通过 self.client 访问"""
-        return self._client
+        await TSPTestCase.client.shutdown()
 
     async def cleanup_file(self, filename: str):
         """清理测试文件"""

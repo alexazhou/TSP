@@ -21,3 +21,6 @@ dependencies = []
 [project.urls]
 "Homepage" = "https://github.com/alexazhou/TSP"
 "Bug Tracker" = "https://github.com/alexazhou/TSP/issues"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

@@ -11,6 +11,8 @@ from .types import (
     TSPInitializeResult, TSPTool, TSPToolResponse,
     ToolCall, ToolResult,
 )
+from .adapters.anthropic import TspAnthropicAdapter
+from .adapters.openai import TspOpenAIAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -241,12 +243,10 @@ class TSPClient:
     # Adapter 工厂方法
     # ─────────────────────────────────────────────────────────────────────────
 
-    def for_anthropic(self) -> "TspAnthropicAdapter":
+    def for_anthropic(self) -> TspAnthropicAdapter:
         """创建 Anthropic Adapter。"""
-        from .adapters.anthropic import TspAnthropicAdapter
         return TspAnthropicAdapter(self)
 
-    def for_openai(self) -> "TspOpenAIAdapter":
+    def for_openai(self) -> TspOpenAIAdapter:
         """创建 OpenAI Adapter。"""
-        from .adapters.openai import TspOpenAIAdapter
         return TspOpenAIAdapter(self)

@@ -4,13 +4,12 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
 from ..types import ToolCall, ToolResult
-from ..client import TSPClient
 
 
 class LLMAdapter(ABC):
     """LLM Adapter 基类，屏蔽不同 LLM API 格式的差异。"""
 
-    def __init__(self, tsp: TSPClient):
+    def __init__(self, tsp: "TSPClient"):
         self.tsp = tsp
 
     @property

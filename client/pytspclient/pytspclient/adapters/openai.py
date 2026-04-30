@@ -17,9 +17,9 @@ class TspOpenAIAdapter(LLMAdapter):
             {
                 "type": "function",
                 "function": {
-                    "name": t["name"],
-                    "description": t["description"],
-                    "parameters": t["input_schema"],
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.input_schema,
                 },
             }
             for t in self.tsp.tools

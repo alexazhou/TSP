@@ -46,14 +46,14 @@ class TSPResponse:
 
 
 @dataclass
-class TSPToolDefinition:
-    """TSP 工具定义（原生格式，与 Anthropic 格式一致）"""
+class TSPTool:
+    """TSP 工具定义"""
     name: str
     description: str = ""
     input_schema: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "TSPToolDefinition":
+    def from_dict(cls, d: Dict[str, Any]) -> "TSPTool":
         return cls(
             name=d.get("name", ""),
             description=d.get("description", ""),
@@ -70,12 +70,12 @@ class TSPToolDefinition:
 
 @dataclass
 class TSPCapabilities:
-    tools: List[TSPToolDefinition] = field(default_factory=list)
+    tools: List[TSPTool] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "TSPCapabilities":
         tools_data = d.get("tools", [])
-        return cls(tools=[TSPToolDefinition.from_dict(t) for t in tools_data])
+        return cls(tools=[TSPTool.from_dict(t) for t in tools_data])
 
 
 @dataclass

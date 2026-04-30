@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .types import (
     TSPRequest, TSPResponse, TSPEvent, TSPException,
-    TSPInitializeResult, TSPToolDefinition, TSPToolResponse,
+    TSPInitializeResult, TSPTool, TSPToolResponse,
     ToolCall, ToolResult,
 )
 
@@ -37,7 +37,7 @@ class TSPClient:
         self.event_handlers: List[Callable[[TSPEvent], None]] = []
         self._read_task: Optional[asyncio.Task] = None
         self._stderr_task: Optional[asyncio.Task] = None
-        self._tools: List[Dict[str, Any]] = []
+        self._tools: List[TSPTool] = []
         self._workdir: str = ""
 
     @classmethod
@@ -57,8 +57,8 @@ class TSPClient:
         raise NotImplementedError("WebSocket mode not yet implemented")
 
     @property
-    def tools(self) -> List[Dict[str, Any]]:
-        """原始 TSP schema（与 Anthropic 格式一致）。"""
+    def tools(self) -> List[TSPTool]:
+        """TSP 工具定义列表。"""
         return self._tools
 
     @property
@@ -212,7 +212,7 @@ class TSPClient:
 
         result_dict = await self.request("initialize", params)
         result = TSPInitializeResult.from_dict(result_dict)
-        self._tools = [t.to_dict() for t in result.capabilities.tools]
+        self._tools = result.capabilities.tools
         self._workdir = result.workdir
         return self
 

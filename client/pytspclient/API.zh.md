@@ -16,8 +16,8 @@ TSPClient.from_stdio(command: str, request_timeout_sec: int = 30) -> TSPClient
 ### 属性
 
 ```python
-tsp.tools: List[dict]    # 工具 Schema（Anthropic 格式）
-tsp.workdir: str         # TSP 工作目录
+tsp.tools: List[TSPTool]    # TSP 工具定义列表
+tsp.workdir: str                      # TSP 工作目录
 ```
 
 ### 方法
@@ -73,6 +73,14 @@ adapter.to_tool_messages(results) -> List[dict]
 ---
 
 ## 数据类
+
+### TSPTool
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `name` | str | 工具名称 |
+| `description` | str | 工具描述 |
+| `input_schema` | dict | 输入参数 Schema |
 
 ### ToolResult
 

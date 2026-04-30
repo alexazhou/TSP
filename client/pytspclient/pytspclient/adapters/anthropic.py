@@ -15,7 +15,7 @@ class TspAnthropicAdapter(LLMAdapter):
     @property
     def tools(self) -> List[Dict[str, Any]]:
         """直接返回 TSP 原始 schema（Anthropic 格式）。"""
-        return self.tsp.tools
+        return [t.to_dict() for t in self.tsp.tools]
 
     def parse_tool_calls(self, response: Any) -> List[ToolCall]:
         """从 Anthropic Messages API 响应中提取 tool_use blocks。"""

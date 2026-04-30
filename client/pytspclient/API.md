@@ -16,8 +16,8 @@ Factory method. Start TSP server from command.
 ### Properties
 
 ```python
-tsp.tools: List[dict]    # Tool schemas (Anthropic format)
-tsp.workdir: str         # TSP working directory
+tsp.tools: List[TSPTool]    # TSP 工具定义列表
+tsp.workdir: str                      # TSP 工作目录
 ```
 
 ### Methods
@@ -73,6 +73,14 @@ Convert results to LLM message format.
 ---
 
 ## Data Classes
+
+### TSPTool
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | str | Tool name |
+| `description` | str | Tool description |
+| `input_schema` | dict | Input parameters schema |
 
 ### ToolResult
 

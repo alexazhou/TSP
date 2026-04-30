@@ -67,58 +67,8 @@ if __name__ == "__main__":
 
 ## API Reference
 
-### `TSPClient`
-
-#### `__init__(command: List[str], request_timeout_sec: int = 30)`
-- `command`: The shell command to run the TSP server.
-- `request_timeout_sec`: Timeout for each request.
-
-#### `async connect()`
-Spawns the TSP server process and starts the internal read loops for `stdout` and `stderr`.
-
-#### `async disconnect()`
-Forcefully terminates the process and fails all pending requests.
-
-#### `async initialize(...) -> TSPInitializeResult`
-Handshake with the server. Protocol version is internally set to `0.3`.
-Parameters:
-- `client_info`: optional metadata about the client.
-- `include`: optional list of tools to enable.
-- `exclude`: optional list of tools to disable.
-
-Returns a `TSPInitializeResult` object.
-
-#### `async tool(tool_name: str, input_params: Dict[str, Any]) -> Dict[str, Any]`
-Executes a specific tool on the server.
-
-#### `async sandbox(config: Dict[str, Any]) -> Dict[str, Any]`
-Configures the server's sandbox/workspace environment.
-
-#### `async shutdown()`
-Sends a `shutdown` request and then calls `disconnect()`.
-
-#### `add_event_handler(handler: Callable[[TSPEvent], None])`
-Registers a callback for server-sent events.
-```python
-def on_event(event: TSPEvent):
-    print(f"Received event: {event.event} with data: {event.data}")
-
-client.add_event_handler(on_event)
-```
-
-### Data Classes
-
-#### `TSPInitializeResult`
-- `protocol_version`: str
-- `capabilities`: Dict[str, Any]
-- `server_info`: Dict[str, Any]
-
-### Exceptions
-
-#### `TSPException`
-Raised when the server returns an error response.
-- `code`: The error code (e.g., `tsp/error`, `tool/not_found`).
-- `message`: Human-readable error message.
+- [English](API.md)
+- [中文版](API.zh.md)
 
 ## License
 

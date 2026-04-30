@@ -1,7 +1,5 @@
 """测试基类：管理 TSPClient 生命周期"""
 
-import asyncio
-import inspect
 import os
 import platform
 import pytest
@@ -17,7 +15,10 @@ else:
 
 
 class TSPTestCase:
-    """TSP 测试基类：通过 autouse fixture 管理 TSPClient 生命周期"""
+    """TSP 测试基类：通过 autouse fixture 管理 TSPClient 生命周期
+
+    子类直接通过 self.client 访问，测试方法不需要显式传 fixture 参数。
+    """
 
     _client: TSPClient = None
 

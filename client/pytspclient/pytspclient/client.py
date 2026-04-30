@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from .types import (
     TSPRequest, TSPResponse, TSPEvent, TSPException,
@@ -43,14 +43,15 @@ class TSPClient:
         self._workdir: str = ""
 
     @classmethod
-    def from_stdio(cls, command: str, request_timeout_sec: int = 30) -> "TSPClient":
+    def from_stdio(cls, command: Union[str, List[str]], request_timeout_sec: int = 30) -> "TSPClient":
         """创建 stdio 模式的 TSP 客户端。
 
         Args:
-            command: gtsp 命令（如 "gtsp" 或 "/path/to/gtsp"）
+            command: gtsp 命令，支持字符串（如 "gtsp"）或列表（如 ["gtsp", "--mode", "stdio"]）
         """
         instance = cls.__new__(cls)
-        instance._init([command], request_timeout_sec)
+        cmd_list = [command] if isinstance(command, str) else command
+        instance._init(cmd_list, request_timeout_sec)
         return instance
 
     @classmethod

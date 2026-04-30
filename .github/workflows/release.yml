@@ -62,11 +62,15 @@ jobs:
       - name: Prepare release assets
         run: |
           cd release
-          # Flatten the directory structure if necessary
-          find . -mindepth 2 -type f -exec mv {} . \;
-          find . -type d -empty -delete
+          # Move files out of nested directories
+          for dir in */; do
+            if [ -d "$dir" ]; then
+              mv "$dir"* . 2>/dev/null || true
+              rm -rf "$dir"
+            fi
+          done
           chmod +x gtsp-linux-* gtsp-darwin-* || true
-          ls -R
+          ls -la
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

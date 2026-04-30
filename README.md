@@ -1,119 +1,122 @@
 # TSP - Tool Service Protocol
 
-[中文版Readme](README.zh.md)  
+[English Readme](README.en.md) 
 
 ---
 
-**Build an autonomous agent in 10 lines of code:**
+**演示：只需 10 行代码打造一个自主行动的 agent**
 
-![Demo: Build an autonomous agent in 10 lines of code](image/demo.gif)
+![演示10行代码打造一个自主行动的 agent](image/demo.gif)
 
-## What is TSP?
+## 什么是 TSP？
 
-**TSP** stands for **Tool Service Protocol**.
+**TSP** 是 **Tool Service Protocol**（工具服务协议）的缩写。
 
-It defines a standardized protocol that completely decouples tool capabilities from LLM reasoning, allowing the agent's "brain" and "hands" to be implemented independently. It also provides a standard, efficient, cross-platform tool implementation, enabling you to build an autonomous agent in just 10 lines of code. This allows you to focus on agent business logic rather than spending time building your own tools.
+1. 它定义了一种标准化协议，将工具能力和大模型推理完全解耦，使得 Agent 的“大脑”和“手”可以分别实现。
+2. 同时提供一套标准、高效、跨平台的工具实现。**让你 10 行代码就可以完成一个自主行动的 Agent**，从而可以专注在 Agent 业务开发上，而不需要花时间自己从头构建底层工具。
 
-## Why TSP?
+## 为什么需要 TSP？
 
-### The m×n Problem
+### m×n 问题
 
-Without a standard protocol, every AI agent that needs system tools must implement them itself. If there are **m** agents and **n** tools, that's **m×n** independent implementations—each with its own development cost, bugs, and tool logic tightly coupled with agent code, making maintenance difficult.
+没有标准协议时，每个需要系统工具的 AI Agent 都必须自己实现这些工具。如果有 **m** 个 Agent 和 **n** 个工具，那就是 **m×n** 个独立实现——每个都有自己的开发成本、bugs，且工具实现与 Agent 代码耦合，难以维护。
 
 ```
-Without TSP                       With TSP
+没有 TSP                       有 TSP
 
-Agent A ──► read_file (impl A)    Agent A ──┐
-Agent A ──► exec_bash (impl A)              │
-Agent A ──► list_dir  (impl A)    Agent B ──┼──► TSP Server ──► read_file
+Agent A ──► read_file (实现 A)    Agent A ──┐
+Agent A ──► exec_bash (实现 A)              │
+Agent A ──► list_dir  (实现 A)    Agent B ──┼──► TSP Server ──► read_file
                                             |               ──► exec_bash
-Agent B ──► read_file (impl B)    Agent C ──┘               ──► list_dir
-Agent B ──► exec_bash (impl B)
-Agent B ──► list_dir  (impl B)
+Agent B ──► read_file (实现 B)    Agent C ──┘               ──► list_dir
+Agent B ──► exec_bash (实现 B)
+Agent B ──► list_dir  (实现 B)
 
 Agent C ──► ...
 
-m×n implementations               m+n implementations
+m×n 个实现                       m+n 个实现
 ```
 
-TSP breaks the m×n matrix into **m+n**: each agent implements the TSP client protocol once, each tool is implemented once in the server, enabling well-designed and high-quality tool implementations.
+TSP 将 m×n 矩阵分解为 **m+n**：每个 Agent 只需实现一次 TSP 客户端协议，每个工具在服务器中只实现一次，可以提供设计优良且高质量的工具实现。
 
-### Other Benefits
+### 其他好处
 
-| Problem | TSP Solution |
+| 问题 | TSP 解决方案 |
 |---|---|
-| Every AI framework re-implements file/shell tools | One standard server, any compatible client |
-| Tool logic tangled with agent/reasoning logic | Clean protocol boundary separates concerns |
-| Inconsistent security across implementations | Workspace sandbox built into the protocol |
-| Clients can't discover available tools | Schema delivered via `initialize` response |
+| 每个 AI 框架都重新实现文件/Shell 工具 | 一个标准服务器，任意兼容客户端 |
+| 工具逻辑与 Agent/推理逻辑纠缠 | 清晰的协议边界分离关注点 |
+| 不同实现的安全策略不一致 | 工作区沙箱内建于协议 |
+| 客户端无法发现有哪些工具可用 | Schema 通过 `initialize` 响应直接传递 |
 
-### Difference from MCP
+### 与 MCP 的区别
 
-In one sentence: **TSP builds Agents, MCP extends Agents**.
+一句话：**TSP 实现 Agent，MCP 拓展 Agent**。
 
-- **TSP** provides core system tools (file I/O, command execution, search, etc.), enabling agents with autonomous action capabilities—ideal for building a complete agent from scratch
-- **MCP** provides external service integration (databases, APIs, third-party tools), extending existing agents with more capabilities—ideal for enhancing established agent systems
+- **TSP** 提供基础系统工具（文件读写、命令执行、搜索等），让 Agent 具备自主行动的核心能力，适合从头构建一个完整的 Agent
+- **MCP** 提供外部服务接入能力（数据库、API、第三方工具），让现有 Agent 获得更多功能扩展，适合增强已有的 Agent 系统
 
-They work together: first build a general agent based on TSP, then add custom capabilities through MCP for personalized needs.
+两者可以配合使用：先基于 TSP 实现一个通用 Agent。再通过 MCP 添加定制能力满足个性化需求。
 
-## Use Cases
+## 适用场景
 
-TSP focuses on AI Agent development, enabling agents to autonomously execute system operations:
+TSP 专注于 AI Agent 开发，让 Agent 能够自主执行系统操作，可用于开发：
 
-- **Coding Assistant Agent**: Read code files, search function definitions, edit code, run tests—complete coding and debugging loop
-- **Data Analysis Agent**: Read data files, execute processing scripts, generate reports—automate data analysis workflows
-- **Operations Agent**: Execute deployment commands, view logs, manage processes—automate operations tasks
-- **Document Processing Agent**: Read documents, batch edit content, generate new documents—automate document management
-- **General Task Agent**: Plan steps based on user instructions, call tools to complete tasks without manual intervention
-- And other scenarios
+- **代码助手 Agent**：读取代码文件、搜索函数定义、编辑代码、运行测试，实现完整的代码编写和调试闭环
+- **数据分析 Agent**：读取数据文件、执行数据处理脚本、生成报告，自动化数据分析流程
+- **运维 Agent**：执行部署命令、查看日志文件、管理进程，实现自动化运维操作
+- **文档处理 Agent**：读取文档、批量编辑内容、生成新文档，自动化文档管理任务
+- **通用任务 Agent**：根据用户指令自主规划步骤，调用工具完成任务，无需人工介入每个细节
+- 等其他场景
 
-## TSP Features
+## TSP 特点
 
-- **Simple & Easy**: Build an autonomous agent in 10 lines of code
-- **Secure & Controllable**: Built-in sandbox mechanism to limit file access scope
-- **Flexible Transport**: Supports stdio, WebSocket, and other transport modes
-- **Ready to Use**: High-performance, cross-platform, zero-dependency Go server
-- **Open & Customizable**: Fully open source, freely add custom tools
+- **简洁易用**：10 行代码即可实现一个自主行动的 Agent
+- **安全可控**：内置沙箱机制，限制文件访问范围
+- **传输灵活**：支持 stdio、WebSocket 等多种传输模式
+- **开箱即用**：提供高性能、跨平台、零依赖的 Go 语言服务端
+- **开放定制**：全开源，可自由添加自定义工具
 
-## Provided Tools
 
-| Tool | Function |
+
+## 提供的工具
+
+| 工具 | 功能 |
 |------|------|
-| `list_dir` | List directory structure |
-| `read_file` | Read file content |
-| `write_file` | Write to file |
-| `edit` | Exact string replacement in file |
-| `grep_search` | Code search |
-| `glob` | File name pattern matching |
-| `execute_bash` | Execute shell commands |
-| `process_*` | Process management |
+| `list_dir` | 列出目录结构 |
+| `read_file` | 读取文件内容 |
+| `write_file` | 写入文件 |
+| `edit` | 精确替换文件内容 |
+| `grep_search` | 代码搜索 |
+| `glob` | 文件名匹配 |
+| `execute_bash` | 执行 shell 命令 |
+| `process_*` | 进程管理 |
 
-See [spec/tools/](spec/tools/) for details.
+详见 [spec/tools/](spec/tools/)
 
-## Project Structure
+## 项目结构
 
 ```
 TSP/
-├── spec/              # Protocol specification
-│   ├── TSP.md         # Protocol overview (English)
-│   ├── TSP.zh.md      # Protocol overview (Chinese)
-│   ├── Protocol.md    # Detailed protocol (English)
-│   ├── Protocol.zh.md # Detailed protocol (Chinese)
-│   └── tools/         # Tool definition docs
+├── spec/              # 协议规范
+│   ├── TSP.md         # 协议概述（英文）
+│   ├── TSP.zh.md      # 协议概述（中文）
+│   ├── Protocol.md    # 协议详细规范（英文）
+│   ├── Protocol.zh.md # 协议详细规范（中文）
+│   └── tools/         # 工具定义文档
 │
-├── gtsp/              # Go implementation (reference)
-│   ├── src/           # Go source
-│   ├── dist/          # Built binaries
-│   └── README.md      # Usage guide
+├── gtsp/              # Go 实现（参考实现）
+│   ├── src/           # Go 源码
+│   ├── dist/          # 构建产物
+│   └── README.md      # 使用说明
 │
-├── client/            # Client implementations
-│   └── pytspclient/   # Python client
+├── client/            # 客户端实现
+│   └── pytspclient/   # Python 客户端
 │
-├── examples/          # Example code
+├── examples/          # 示例代码
 │   ├── demo_basic.py
 │   └── demo_agent.py
 │
-└── tsp_gui_tester/    # GUI testing tool
+└── tsp_gui_tester/    # GUI 测试工具
 ```
 
 ## License

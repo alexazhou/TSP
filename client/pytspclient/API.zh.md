@@ -8,42 +8,41 @@
 
 ### 构造函数
 
+工厂方法。从命令启动 TSP 服务器。
 ```python
 TSPClient.from_stdio(command: str, request_timeout_sec: int = 30) -> TSPClient
 ```
-工厂方法。从命令启动 TSP 服务器。
 
 ### 属性
 
 ```python
-tsp.tools: List[TSPTool]    # TSP 工具定义列表
-tsp.workdir: str                      # TSP 工作目录
+tsp.tools: List[TSPTool]    # 工具定义列表
+tsp.workdir: str            # TSP 工作目录
 ```
 
 ### 方法
 
+连接 + 初始化。返回 self 支持链式调用。
 ```python
 await tsp.start() -> TSPClient
 ```
-连接 + 初始化。返回 self 支持链式调用。
 
+执行工具调用。
 ```python
 call = ToolCall(name="read_file", input={"file_path": "hello.txt"})
 result = await tsp.call_tool(call) -> ToolResult
 ```
-执行工具调用。
 
+优雅关闭连接。
 ```python
 await tsp.shutdown()
 ```
-优雅关闭连接。
 
 ---
 
 ## Adapter
 
 创建适配器对接 LLM。
-
 ```python
 tsp.for_openai() -> TspOpenAIAdapter
 tsp.for_anthropic() -> TspAnthropicAdapter
@@ -51,25 +50,25 @@ tsp.for_anthropic() -> TspAnthropicAdapter
 
 ### 方法
 
+LLM API 格式的工具 Schema。
 ```python
 adapter.tools: List[dict]
 ```
-LLM API 格式的工具 Schema。
 
-```python
-adapter.parse_tool_calls(response) -> List[ToolCall]
-```
 从 LLM 响应解析工具调用。
+```python
+adapter.parse_tool_calls(response) -> List[ToolCall]  # response: OpenAI ChatCompletion | Anthropic Message
+```
 
+通过 TSP 执行所有工具调用。
 ```python
 await adapter.execute_tool_calls(response) -> List[ToolResult]
 ```
-通过 TSP 执行所有工具调用。
 
+将结果转换为 LLM 消息格式。
 ```python
 adapter.to_tool_messages(results) -> List[dict]
 ```
-将结果转换为 LLM 消息格式。
 
 ---
 

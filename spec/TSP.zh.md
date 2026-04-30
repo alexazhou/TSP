@@ -11,10 +11,10 @@ TSP 受微软为 VS Code 创建的 [语言服务协议 (LSP)](https://microsoft.
 在 LSP 中，代码编辑器与语言服务器通信以获得代码智能（补全、诊断、重命名等）。在 TSP 中，AI Agent 与工具服务器通信以执行系统操作（读取文件、运行命令、搜索代码等）。
 
 ```
-┌──────────────────┐        TSP 消息 (JSON)        ┌──────────────────┐
+┌──────────────────┐        TSP 消息 (JSON)             ┌──────────────────┐
 │    AI Agent      │  ──────────────────────────────►  │   Tool Server    │
-│  (LLM / Host)    │  ◄──────────────────────────────  │(如 gtsp 二进制) │
-└──────────────────┘    stdio  或  WebSocket           └──────────────────┘
+│  (LLM / Host)    │  ◄──────────────────────────────  │(如 gtsp 二进制)    │
+└──────────────────┘    stdio  或  WebSocket            └──────────────────┘
 ```
 
 ## 为什么需要 TSP？
@@ -28,7 +28,7 @@ TSP 受微软为 VS Code 创建的 [语言服务协议 (LSP)](https://microsoft.
 
 Agent A ──► read_file (实现 A)    Agent A ──┐
 Agent A ──► exec_bash (实现 A)              │
-Agent A ──► list_dir  (实现 A)    Agent B ──┼──► TSP Server ──► read_file
+Agent A ──► list_dir  (实现 A)    Agent B ──┼──► TSP Server  ──► read_file
                                             │                ──► exec_bash
 Agent B ──► read_file (实现 B)    Agent C ──┘                ──► list_dir
 Agent B ──► exec_bash (实现 B)
@@ -87,7 +87,7 @@ Client                                                    Server
   │──────────────--────── initialize ──────────────────────►│
   │◄──────────────── result {tools, workdir} ───────────────│
   │                                                         │
-  │              (将工具注册到 LLM)                          │
+  │              (将工具注册到 LLM)                           │
   │                                                         │
   │── {"id":"1","method":"tool","tool":"read_file",...} ───►│
   │── {"id":"2","method":"tool","tool":"list_dir",...} ────►│  (并发)

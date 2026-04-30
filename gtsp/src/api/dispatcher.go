@@ -17,15 +17,17 @@ type HandlerFunc func(session Session, params json.RawMessage) (interface{}, err
 
 // Dispatcher routes requests to handlers and supports multiple clients (stdio, ws)
 type Dispatcher struct {
-	handlers map[string]HandlerFunc
-	schemas  map[string]ToolDefinition
+	handlers     map[string]HandlerFunc
+	schemas      map[string]ToolDefinition
+	toolOrder    []string // 保存注册顺序
 }
 
 // NewDispatcher creates a new RPC dispatcher
 func NewDispatcher() *Dispatcher {
 	return &Dispatcher{
-		handlers: make(map[string]HandlerFunc),
-		schemas:  make(map[string]ToolDefinition),
+		handlers:  make(map[string]HandlerFunc),
+		schemas:   make(map[string]ToolDefinition),
+		toolOrder: []string{},
 	}
 }
 
@@ -38,6 +40,7 @@ func (d *Dispatcher) Register(toolName string, handler HandlerFunc) {
 func (d *Dispatcher) RegisterWithSchema(toolName string, handler HandlerFunc, schema ToolDefinition) {
 	d.handlers[toolName] = handler
 	d.schemas[toolName] = schema
+	d.toolOrder = append(d.toolOrder, toolName)
 }
 
 // GetSchemas returns all registered tool schemas
@@ -145,11 +148,15 @@ func (d *Dispatcher) handleInitialize(session Session, client Client, req Reques
 
 	allowedTools := make(map[string]bool)
 	toolList := make([]ToolDefinition, 0, len(d.schemas))
-	for name, schema := range d.schemas {
+	for _, name := range d.toolOrder {
 		if len(include) > 0 && !include[name] {
 			continue
 		}
 		if exclude[name] {
+			continue
+		}
+		schema, ok := d.schemas[name]
+		if !ok {
 			continue
 		}
 		toolList = append(toolList, schema)

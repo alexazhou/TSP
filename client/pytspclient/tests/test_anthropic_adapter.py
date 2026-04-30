@@ -75,7 +75,7 @@ class TestAnthropicAdapter(TSPTestCase):
         adapter = self.client.for_anthropic()
 
         # 先写入文件
-        write_call = ToolCall(name="write_file", input={"file_path": "test_anthropic.txt", "content": "Anthropic test"})
+        write_call = ToolCall(name="write_file", input={"file_path": "/tmp/test_anthropic.txt", "content": "Anthropic test"})
         await self.client.call_tool(write_call)
 
         mock_response = MockAnthropicResponse(
@@ -84,7 +84,7 @@ class TestAnthropicAdapter(TSPTestCase):
                     type="tool_use",
                     id="toolu-1",
                     name="read_file",
-                    input={"file_path": "test_anthropic.txt"},
+                    input={"file_path": "/tmp/test_anthropic.txt"},
                 ),
             ],
         )
@@ -95,7 +95,7 @@ class TestAnthropicAdapter(TSPTestCase):
         assert "Anthropic test" in results[0].output
 
         # 清理
-        await self.cleanup_file("test_anthropic.txt")
+        await self.cleanup_file("/tmp/test_anthropic.txt")
 
     async def test_to_tool_messages(self):
         """测试转换 tool messages"""

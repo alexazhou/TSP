@@ -93,7 +93,7 @@ class TestOpenAIAdapter(TSPTestCase):
         adapter = self.client.for_openai()
 
         # 先写入文件
-        write_call = ToolCall(name="write_file", input={"file_path": "test_adapter.txt", "content": "Adapter test"})
+        write_call = ToolCall(name="write_file", input={"file_path": "/tmp/test_adapter.txt", "content": "Adapter test"})
         await self.client.call_tool(write_call)
 
         mock_response = MockOpenAIResponse(
@@ -106,7 +106,7 @@ class TestOpenAIAdapter(TSPTestCase):
                                 id="call-1",
                                 function=MockOpenAIFunction(
                                     name="read_file",
-                                    arguments=json.dumps({"file_path": "test_adapter.txt"}),
+                                    arguments=json.dumps({"file_path": "/tmp/test_adapter.txt"}),
                                 ),
                             ),
                         ],
@@ -121,7 +121,7 @@ class TestOpenAIAdapter(TSPTestCase):
         assert "Adapter test" in results[0].output
 
         # 清理
-        await self.cleanup_file("test_adapter.txt")
+        await self.cleanup_file("/tmp/test_adapter.txt")
 
     async def test_to_tool_messages(self):
         """测试转换 tool messages"""

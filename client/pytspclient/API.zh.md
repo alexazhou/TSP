@@ -2,95 +2,142 @@
 
 [English](API.md)
 
-## TSPClient
+---
 
-### `__init__(command: List[str], request_timeout_sec: int = 30)`
-- `command`: 启动 TSP 服务器的 shell 命令。
-- `request_timeout_sec`: 每个请求的超时时间。
+## 一、使用 Raw API
 
-### `async connect()`
-启动 TSP 服务器进程，并启动内部读取循环处理 `stdout` 和 `stderr`。
+直接调用 TSP 工具，不涉及 LLM。
 
-### `async disconnect()`
-强制终止进程并使所有待处理请求失败。
+### 创建客户端
 
-### `async initialize(...) -> TSPInitializeResult`
-与服务器握手。协议版本内部设置为 `0.3`。
-参数：
-- `client_info`: 可选的客户端元数据。
-- `include`: 可选的启用工具列表。
-- `exclude`: 可选的禁用工具列表。
-
-返回 `TSPInitializeResult` 对象。
-
-### `async tool(tool_name: str, input_params: Dict[str, Any]) -> Dict[str, Any]`
-在服务器上执行指定工具。
-
-### `async sandbox(config: Dict[str, Any]) -> Dict[str, Any]`
-配置服务器的沙箱/工作区环境。
-
-### `async shutdown()`
-发送 `shutdown` 请求，然后调用 `disconnect()`。
-
-### `add_event_handler(handler: Callable[[TSPEvent], None])`
-注册服务器发送事件的回调函数。
 ```python
-def on_event(event: TSPEvent):
-    print(f"收到事件: {event.event}，数据: {event.data}")
+from pytspclient import TSPClient
 
-client.add_event_handler(on_event)
+# 工厂方法创建实例
+tsp = TSPClient.from_stdio("./gtsp")
+
+# 链式调用：连接 + 初始化
+await tsp.start()
 ```
+
+### 调用工具
+
+```python
+# 读取文件
+result = await tsp.call_tool("read_file", {"file_path": "hello.txt"})
+print(result.output)
+
+# 写入文件
+await tsp.call_tool("write_file", {"file_path": "output.txt", "content": "Hello"})
+
+# 执行命令
+result = await tsp.call_tool("execute_bash", {"command": "ls -la"})
+```
+
+### 关闭连接
+
+```python
+await tsp.shutdown()
+```
+
+### TSPClient 方法
+
+| 方法 | 说明 |
+|------|------|
+| `from_stdio(command)` | 工厂方法，从命令启动 TSP 服务 |
+| `start()` | 连接 + 初始化，返回 self |
+| `call_tool(name, params)` | 调用工具，返回 ToolResult |
+| `shutdown()` | 关闭连接 |
+
+### 属性
+
+| 属性 | 说明 |
+|------|------|
+| `tools` | 工具 Schema 列表（Anthropic 格式） |
+| `workdir` | TSP 工作目录 |
 
 ---
 
-## Adapter（LLM 格式支持）
+## 二、使用 Adapter
 
-pyTSPClient 提供适配器，无缝对接不同的 LLM API 格式。
+对接 LLM，让 Agent 自动调用工具。
 
-### `TSPClient.for_openai() -> OpenAIAdapter`
-返回 OpenAI 兼容 API 的适配器。
+### 创建 Adapter
 
-### `TSPClient.for_anthropic() -> AnthropicAdapter`
-返回 Anthropic API 的适配器。
+```python
+tsp = await TSPClient.from_stdio("./gtsp").start()
 
-### LLMAdapter 方法
+# OpenAI 格式
+adapter = tsp.for_openai()
 
-#### `tools: List[Dict[str, Any]]`
-返回 LLM API 期望格式的工具 Schema。
+# Anthropic 格式
+adapter = tsp.for_anthropic()
+```
 
-#### `parse_tool_calls(response: Any) -> List[ToolCall]`
-从 LLM 响应中提取工具调用，转换为统一格式。
+### 完整 Agent 示例
 
-#### `execute_tool_calls(response: Any) -> List[ToolResult]`
-通过 TSP 执行响应中的所有工具调用。
+```python
+from pytspclient import TSPClient
+from openai import OpenAI
 
-#### `to_tool_messages(results: List[ToolResult]) -> Any`
-将工具结果转换为 LLM API 期望的消息格式。
+tsp = await TSPClient.from_stdio("./gtsp").start()
+adapter = tsp.for_openai()
+llm = OpenAI()
+messages = [{"role": "system", "content": "You are a helpful assistant."}]
+
+# 用户输入
+messages.append({"role": "user", "content": "读取 hello.txt 文件"})
+
+# Agent 循环
+while True:
+    resp = llm.chat.completions.create(model="gpt-4o", messages=messages, tools=adapter.tools)
+    messages.append(resp.choices[0].message)
+
+    calls = adapter.parse_tool_calls(resp)
+    if calls:
+        results = await adapter.execute_tool_calls(resp)
+        messages.extend(adapter.to_tool_messages(results))
+    else:
+        print(resp.choices[0].message.content)
+        break
+```
+
+### Adapter 方法
+
+| 方法 | 说明 |
+|------|------|
+| `tools` | 返回工具 Schema，直接传给 LLM |
+| `parse_tool_calls(resp)` | 从 LLM 响应解析工具调用 |
+| `execute_tool_calls(resp)` | 执行工具调用，返回结果 |
+| `to_tool_messages(results)` | 将结果转换为 LLM 消息格式 |
 
 ---
 
 ## 数据类
 
-### `TSPInitializeResult`
-- `protocol_version`: str
-- `capabilities`: Dict[str, Any]
-- `server_info`: Dict[str, Any]
+### ToolResult
 
-### `ToolCall`
-- `id`: str — LLM 分配的调用 ID
-- `name`: str — 工具名称
-- `input`: dict — 工具参数
+| 字段 | 说明 |
+|------|------|
+| `call_id` | 工具调用 ID |
+| `name` | 工具名称 |
+| `output` | 执行结果（JSON 字符串） |
 
-### `ToolResult`
-- `call_id`: str — 对应 ToolCall.id
-- `name`: str — 工具名称
-- `output`: str — JSON 字符串结果
+### ToolCall
+
+| 字段 | 说明 |
+|------|------|
+| `id` | LLM 分配的调用 ID |
+| `name` | 工具名称 |
+| `input` | 工具参数 |
 
 ---
 
 ## 异常
 
-### `TSPException`
-服务器返回错误响应时抛出。
-- `code`: 错误码（如 `tsp/error`、`tool/not_found`）。
-- `message`: 人类可读的错误信息。
+### TSPException
+
+| 字段 | 说明 |
+|------|------|
+| `code` | 错误码（如 `resource/not_found`） |
+| `message` | 错误信息 |

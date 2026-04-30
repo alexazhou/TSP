@@ -2,95 +2,142 @@
 
 [中文版](API.zh.md)
 
-## TSPClient
+---
 
-### `__init__(command: List[str], request_timeout_sec: int = 30)`
-- `command`: The shell command to run the TSP server.
-- `request_timeout_sec`: Timeout for each request.
+## 1. Using Raw API
 
-### `async connect()`
-Spawns the TSP server process and starts the internal read loops for `stdout` and `stderr`.
+Call TSP tools directly, without LLM.
 
-### `async disconnect()`
-Forcefully terminates the process and fails all pending requests.
+### Create Client
 
-### `async initialize(...) -> TSPInitializeResult`
-Handshake with the server. Protocol version is internally set to `0.3`.
-Parameters:
-- `client_info`: optional metadata about the client.
-- `include`: optional list of tools to enable.
-- `exclude`: optional list of tools to disable.
-
-Returns a `TSPInitializeResult` object.
-
-### `async tool(tool_name: str, input_params: Dict[str, Any]) -> Dict[str, Any]`
-Executes a specific tool on the server.
-
-### `async sandbox(config: Dict[str, Any]) -> Dict[str, Any]`
-Configures the server's sandbox/workspace environment.
-
-### `async shutdown()`
-Sends a `shutdown` request and then calls `disconnect()`.
-
-### `add_event_handler(handler: Callable[[TSPEvent], None])`
-Registers a callback for server-sent events.
 ```python
-def on_event(event: TSPEvent):
-    print(f"Received event: {event.event} with data: {event.data}")
+from pytspclient import TSPClient
 
-client.add_event_handler(on_event)
+# Factory method
+tsp = TSPClient.from_stdio("./gtsp")
+
+# Chain call: connect + initialize
+await tsp.start()
 ```
+
+### Call Tools
+
+```python
+# Read file
+result = await tsp.call_tool("read_file", {"file_path": "hello.txt"})
+print(result.output)
+
+# Write file
+await tsp.call_tool("write_file", {"file_path": "output.txt", "content": "Hello"})
+
+# Execute command
+result = await tsp.call_tool("execute_bash", {"command": "ls -la"})
+```
+
+### Close Connection
+
+```python
+await tsp.shutdown()
+```
+
+### TSPClient Methods
+
+| Method | Description |
+|------|------|
+| `from_stdio(command)` | Factory method, start TSP server from command |
+| `start()` | Connect + initialize, returns self |
+| `call_tool(name, params)` | Call tool, returns ToolResult |
+| `shutdown()` | Close connection |
+
+### Properties
+
+| Property | Description |
+|------|------|
+| `tools` | Tool schema list (Anthropic format) |
+| `workdir` | TSP working directory |
 
 ---
 
-## Adapter (LLM Format Support)
+## 2. Using Adapter
 
-pyTSPClient provides adapters to seamlessly integrate with different LLM API formats.
+Integrate with LLM, let Agent call tools automatically.
 
-### `TSPClient.for_openai() -> OpenAIAdapter`
-Returns an adapter for OpenAI-compatible APIs.
+### Create Adapter
 
-### `TSPClient.for_anthropic() -> AnthropicAdapter`
-Returns an adapter for Anthropic APIs.
+```python
+tsp = await TSPClient.from_stdio("./gtsp").start()
 
-### LLMAdapter Methods
+# OpenAI format
+adapter = tsp.for_openai()
 
-#### `tools: List[Dict[str, Any]]`
-Returns the tool schemas in the format expected by the LLM API.
+# Anthropic format
+adapter = tsp.for_anthropic()
+```
 
-#### `parse_tool_calls(response: Any) -> List[ToolCall]`
-Extracts tool calls from the LLM response into a unified format.
+### Full Agent Example
 
-#### `execute_tool_calls(response: Any) -> List[ToolResult]`
-Executes all tool calls from the response via TSP.
+```python
+from pytspclient import TSPClient
+from openai import OpenAI
 
-#### `to_tool_messages(results: List[ToolResult]) -> Any`
-Converts tool results into messages format expected by the LLM API.
+tsp = await TSPClient.from_stdio("./gtsp").start()
+adapter = tsp.for_openai()
+llm = OpenAI()
+messages = [{"role": "system", "content": "You are a helpful assistant."}]
+
+# User input
+messages.append({"role": "user", "content": "Read hello.txt file"})
+
+# Agent loop
+while True:
+    resp = llm.chat.completions.create(model="gpt-4o", messages=messages, tools=adapter.tools)
+    messages.append(resp.choices[0].message)
+
+    calls = adapter.parse_tool_calls(resp)
+    if calls:
+        results = await adapter.execute_tool_calls(resp)
+        messages.extend(adapter.to_tool_messages(results))
+    else:
+        print(resp.choices[0].message.content)
+        break
+```
+
+### Adapter Methods
+
+| Method | Description |
+|------|------|
+| `tools` | Return tool schema, pass directly to LLM |
+| `parse_tool_calls(resp)` | Parse tool calls from LLM response |
+| `execute_tool_calls(resp)` | Execute tool calls, return results |
+| `to_tool_messages(results)` | Convert results to LLM message format |
 
 ---
 
 ## Data Classes
 
-### `TSPInitializeResult`
-- `protocol_version`: str
-- `capabilities`: Dict[str, Any]
-- `server_info`: Dict[str, Any]
+### ToolResult
 
-### `ToolCall`
-- `id`: str — LLM assigned call ID
-- `name`: str — tool name
-- `input`: dict — tool parameters
+| Field | Description |
+|------|------|
+| `call_id` | Tool call ID |
+| `name` | Tool name |
+| `output` | Execution result (JSON string) |
 
-### `ToolResult`
-- `call_id`: str — corresponds to ToolCall.id
-- `name`: str — tool name
-- `output`: str — JSON string result
+### ToolCall
+
+| Field | Description |
+|------|------|
+| `id` | LLM assigned call ID |
+| `name` | Tool name |
+| `input` | Tool parameters |
 
 ---
 
 ## Exceptions
 
-### `TSPException`
-Raised when the server returns an error response.
-- `code`: The error code (e.g., `tsp/error`, `tool/not_found`).
-- `message`: Human-readable error message.
+### TSPException
+
+| Field | Description |
+|------|------|
+| `code` | Error code (e.g. `resource/not_found`) |
+| `message` | Error message |

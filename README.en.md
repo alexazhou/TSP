@@ -10,9 +10,11 @@
 
 ## What is TSP?
 
-**TSP** stands for **Tool Service Protocol**.
+It consists of two parts:
 
-It defines a standardized protocol that completely decouples tool capabilities from LLM reasoning, allowing the agent's "brain" and "hands" to be implemented independently. It also provides a standard, efficient, cross-platform tool implementation, enabling you to build an autonomous agent in just 10 lines of code. This allows you to focus on agent business logic rather than spending time building your own tools.
+1. **TSP Protocol**: **Tool Service Protocol** defines a standardized protocol that completely decouples tool capabilities from agent business code, allowing the agent's "brain" and "hands" to be implemented independently.
+
+2. **gTSP Implementation**: A standard, efficient, cross-platform tool service built according to the TSP protocol. Ready to use, no development needed, can be integrated with any agent. Enables you to build an autonomous agent in just 10 lines of code and focus on agent business logic.
 
 ## Why TSP?
 

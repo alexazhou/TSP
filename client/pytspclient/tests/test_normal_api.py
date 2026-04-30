@@ -29,7 +29,8 @@ class TestNormalAPI(TSPTestCase):
         call = ToolCall(name="read_file", input={"file_path": "/tmp/test_hello.txt"})
         result = await self.client.call_tool(call)
         assert result.name == "read_file"
-        assert "Hello TSP!" in result.output
+        assert isinstance(result.output, dict)
+        assert "Hello TSP!" in result.output["content"]
 
         # 清理
         await self.cleanup_file("/tmp/test_hello.txt")
@@ -43,7 +44,8 @@ class TestNormalAPI(TSPTestCase):
         # 读取验证写入成功
         call = ToolCall(name="read_file", input={"file_path": "/tmp/test_id.txt"})
         result = await self.client.call_tool(call)
-        assert "test content" in result.output
+        assert isinstance(result.output, dict)
+        assert "test content" in result.output["content"]
 
         # 清理
         await self.cleanup_file("/tmp/test_id.txt")

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytspclient"
-version = "0.2.4"
+version = "0.2.5"
 authors = [
   { name="AlexaZhou", email="AlexaZhou@163.com" },
 ]

@@ -43,7 +43,12 @@ class TspOpenAIAdapter(LLMAdapter):
 
     def to_tool_messages(self, results: List[ToolResult]) -> List[Dict[str, Any]]:
         """将工具执行结果转换为 OpenAI tool messages。"""
-        return [
-            {"role": "tool", "tool_call_id": r.call_id, "content": r.output}
-            for r in results
-        ]
+        messages = []
+        for r in results:
+            # OpenAI API 要求 content 为字符串
+            if isinstance(r.output, str):
+                content = r.output
+            else:
+                content = json.dumps(r.output, ensure_ascii=False)
+            messages.append({"role": "tool", "tool_call_id": r.call_id, "content": content})
+        return messages

@@ -1,7 +1,7 @@
 """TSP 协议类型 + LLM Adapter 中间类型"""
 
 from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Union
 import json
 
 
@@ -166,4 +166,4 @@ class ToolResult:
     """工具执行结果（统一中间格式）"""
     call_id: str  # 对应 ToolCall.id
     name: str     # 工具名（Anthropic 不需要，但保留备用）
-    output: str   # JSON 字符串，result 或 error
+    output: Union[Dict[str, Any], List[Any], str]  # 原始结果

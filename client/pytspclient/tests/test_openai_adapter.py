@@ -118,7 +118,8 @@ class TestOpenAIAdapter(TSPTestCase):
         assert len(results) == 1
         assert results[0].call_id == "call-1"
         assert results[0].name == "read_file"
-        assert "Adapter test" in results[0].output
+        assert isinstance(results[0].output, dict)
+        assert "Adapter test" in results[0].output["content"]
 
         # 清理
         await self.cleanup_file("/tmp/test_adapter.txt")
@@ -127,13 +128,14 @@ class TestOpenAIAdapter(TSPTestCase):
         """测试转换 tool messages"""
         adapter = self.client.for_openai()
         results = [
-            ToolResult(call_id="call-1", name="read_file", output=json.dumps({"content": "hello"})),
-            ToolResult(call_id="call-2", name="write_file", output=json.dumps({"success": True})),
+            ToolResult(call_id="call-1", name="read_file", output={"content": "hello"}),
+            ToolResult(call_id="call-2", name="write_file", output={"success": True}),
         ]
         messages = adapter.to_tool_messages(results)
         assert len(messages) == 2
         assert messages[0]["role"] == "tool"
         assert messages[0]["tool_call_id"] == "call-1"
+        assert messages[0]["content"] == '{"content": "hello"}'  # dict 被序列化为 JSON 字符串
         assert messages[1]["tool_call_id"] == "call-2"
 
     async def test_get_text(self):

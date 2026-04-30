@@ -226,8 +226,7 @@ class TSPClient:
         """执行工具调用。"""
         tsp_resp = await self.request("tool", call.input, tool=call.name)
         resp = TSPToolResponse.from_any(tsp_resp)
-        output = json.dumps(resp.result, ensure_ascii=False) if isinstance(resp.result, dict) else str(resp.result)
-        return ToolResult(call_id=call.id, name=call.name, output=output)
+        return ToolResult(call_id=call.id, name=call.name, output=resp.result)
 
     async def shutdown(self):
         try:

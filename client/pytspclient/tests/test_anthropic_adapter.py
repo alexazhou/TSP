@@ -92,7 +92,8 @@ class TestAnthropicAdapter(TSPTestCase):
         assert len(results) == 1
         assert results[0].call_id == "toolu-1"
         assert results[0].name == "read_file"
-        assert "Anthropic test" in results[0].output
+        assert isinstance(results[0].output, dict)
+        assert "Anthropic test" in results[0].output["content"]
 
         # 清理
         await self.cleanup_file("/tmp/test_anthropic.txt")
@@ -101,7 +102,7 @@ class TestAnthropicAdapter(TSPTestCase):
         """测试转换 tool messages"""
         adapter = self.client.for_anthropic()
         results = [
-            ToolResult(call_id="toolu-1", name="read_file", output=json.dumps({"content": "hello"})),
+            ToolResult(call_id="toolu-1", name="read_file", output={"content": "hello"}),
         ]
         message = adapter.to_tool_messages(results)
         assert message["role"] == "user"

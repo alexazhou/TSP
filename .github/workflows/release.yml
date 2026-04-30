@@ -7,20 +7,15 @@ on:
 
 jobs:
   build-gtsp:
-    name: Build gtsp for ${{ matrix.os }}
-    runs-on: ${{ matrix.runner }}
+    name: Build gtsp for ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - os: linux-amd64
-            runner: ubuntu-latest
-            output: gtsp
-          - os: darwin-amd64
-            runner: macos-latest
-            output: gtsp
-          - os: windows-amd64
-            runner: windows-latest
-            output: gtsp.exe
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -31,18 +26,30 @@ jobs:
 
       - name: Build
         working-directory: gtsp/src
-        run: go build -ldflags="-s -w" -o ${{ matrix.output }} main.go
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          BINARY_NAME="gtsp-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+          go build -ldflags="-s -w" -o "${BINARY_NAME}" main.go
+          echo "BINARY_PATH=gtsp/src/${BINARY_NAME}" >> $GITHUB_ENV
+          echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gtsp-${{ matrix.os }}
-          path: gtsp/src/${{ matrix.output }}
+          name: ${{ env.BINARY_NAME }}
+          path: ${{ env.BINARY_PATH }}
 
   create-release:
     name: Create Release
     needs: build-gtsp
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -50,18 +57,19 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: release
 
       - name: Prepare release assets
         run: |
-          mkdir -p release
-          mv artifacts/gtsp-linux-amd64/gtsp release/gtsp-linux-amd64
-          mv artifacts/gtsp-darwin-amd64/gtsp release/gtsp-darwin-amd64
-          mv artifacts/gtsp-windows-amd64/gtsp.exe release/gtsp-windows-amd64.exe
-          chmod +x release/gtsp-linux-amd64 release/gtsp-darwin-amd64
+          cd release
+          # Flatten the directory structure if necessary
+          find . -mindepth 2 -type f -exec mv {} . \;
+          find . -type d -empty -delete
+          chmod +x gtsp-linux-* gtsp-darwin-* || true
+          ls -R
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: release/*
           generate_release_notes: true

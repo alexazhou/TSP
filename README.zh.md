@@ -1,17 +1,19 @@
 # TSP - Tool Service Protocol
 
-[English](README.md)  |  **版本:** 0.3  |  **参考实现:** [gTSP](https://github.com/alexazhou/TSP/tree/master/gtsp)
+[English Readme](README.md) 
 
 ---
 
-TSP 定义了一种标准化协议，将工具能力与 Agent 业务代码完全解耦。同时提供一套标准、高效、跨平台的工具实现，让你 10 行代码就可以完成一个自主行动的 Agent。
+**演示：只需 10 行代码打造一个自主行动的 agent**
 
-本仓库包括：
-- **TSP 协议规范** — 协议定义与详细文档（英文/中文）
-- **examples** — 10 行代码实现一个自主行动的 Agent，见 [demo_agent.py](examples/demo_agent.py)
-- **gTSP** — Go 语言参考实现，高性能、单文件、零依赖、跨平台
-- **pytspclient** — Python 客户端，支持 Anthropic/OpenAI 格式适配
-- **tsp_gui_tester** — GUI 测试工具，可视化调试 TSP 服务
+![演示10行代码打造一个自主行动的 agent](image/demo.gif)
+
+## 什么是 TSP？
+
+**TSP** 是 **Tool Service Protocol**（工具服务协议）的缩写。
+
+1. 它定义了一种标准化协议，将工具能力和大模型推理完全解耦，使得 Agent 的“大脑”和“手”可以分别实现。
+2. 同时提供一套标准、高效、跨平台的工具实现。**让你 10 行代码就可以完成一个自主行动的 Agent**，从而可以专注在 Agent 业务开发上，而不需要花时间自己从头构建底层工具。
 
 ## 为什么需要 TSP？
 

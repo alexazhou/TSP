@@ -10,7 +10,7 @@ import asyncio
 from pytspclient import TSPClient
 from openai import OpenAI
 
-GTSP_PATH = "./gtsp"  # 替换为实际路径
+GTSP_PATH = "./gtsp-darwin-arm64"  # 替换为实际路径
 
 async def main():
     tsp = await TSPClient.from_stdio(GTSP_PATH).start()
@@ -18,15 +18,15 @@ async def main():
     llm = OpenAI()
     messages = [{"role": "system", "content": "You are a helpful assistant."}]
 
-    # 交互循环
+    # 循环获取用户任务
     while True:
-        content = input("You: ").strip()
+        content = input("You: ").strip() # 获取用户新输入的任务
         if not content: continue
         messages.append({"role": "user", "content": content})
 
-        # 执行直到所有工具调用完成
+        # ----- 以下10代码，即可实现 agent 自主连续行动，直到完成用户任务 -----
         while True:
-            resp = llm.chat.completions.create(model="gpt-4o-mini", messages=messages, tools=adapter.tools)
+            resp = llm.chat.completions.create(model="azure_openai/gpt-5.4", messages=messages, tools=adapter.tools)
             messages.append(resp.choices[0].message)
 
             calls = adapter.parse_tool_calls(resp)
@@ -34,7 +34,7 @@ async def main():
                 results = await adapter.execute_tool_calls(resp)
                 messages.extend(adapter.to_tool_messages(results))
             else:
-                print(f"Agent: {resp.choices[0].message.content}")
+                print(f"Agent: {resp.choices[0].message.content}\n")
                 break
 
 asyncio.run(main())

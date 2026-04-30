@@ -1,17 +1,18 @@
 # TSP - Tool Service Protocol
 
-[中文版](README.zh.md)  |  **Version:** 0.3  |  **Reference Implementation:** [gTSP](https://github.com/alexazhou/TSP/tree/master/gtsp)
+[中文版Readme](README.zh.md)  
 
 ---
 
-TSP defines a standardized protocol that completely decouples tool capabilities from agent business code. It also provides a standard, efficient, cross-platform tool implementation, enabling you to build an autonomous agent in just 10 lines of code.
+**Build an autonomous agent in 10 lines of code:**
 
-This repository includes:
-- **TSP Protocol Specification** — Protocol definition and detailed documentation (English/Chinese)
-- **examples** — Build an autonomous agent in 10 lines of code, see [demo_agent.py](examples/demo_agent.py)
-- **gTSP** — Go reference implementation, high-performance, single-file, zero-dependency, cross-platform
-- **pytspclient** — Python client with Anthropic/OpenAI format adapters
-- **tsp_gui_tester** — GUI testing tool for visual TSP service debugging
+![Demo: Build an autonomous agent in 10 lines of code](image/demo.gif)
+
+## What is TSP?
+
+**TSP** stands for **Tool Service Protocol**.
+
+It defines a standardized protocol that completely decouples tool capabilities from LLM reasoning, allowing the agent's "brain" and "hands" to be implemented independently. It also provides a standard, efficient, cross-platform tool implementation, enabling you to build an autonomous agent in just 10 lines of code. This allows you to focus on agent business logic rather than spending time building your own tools.
 
 ## Why TSP?
 

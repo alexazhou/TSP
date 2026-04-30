@@ -1,8 +1,13 @@
 # Binaries
-/gtsp
+/gtsp/src/gtsp
+/gtsp/src/gtsp.exe
+
+# Logs
+*.log
 
 # Python venv
 .venv/
+venv/
 
 # External/Linked docs
 code_and_design/
@@ -18,9 +23,15 @@ vendor/
 *.out
 
 dist/
+gtsp/dist/
 
 # Python cache
 __pycache__/
 
 # Claude local settings
 .claude/
+
+# gTSP specific (merged from gtsp/.gitignore)
+/gtsp/src/gtsp-*
+/gtsp/src/gtsp-*.exe
+.idea

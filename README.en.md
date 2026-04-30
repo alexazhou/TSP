@@ -8,6 +8,10 @@
 
 ![Demo: Build an autonomous agent in 10 lines of code](image/demo.gif)
 
+## Products Built with TSP
+
+- [**TeamAgent**](https://github.com/alexazhou/TeamAgent) — MultiAgent product, your AI teams, ready to go
+
 ## What is TSP?
 
 It consists of two parts:

@@ -8,6 +8,10 @@
 
 ![演示10行代码打造一个自主行动的 agent](image/demo.gif)
 
+## 使用 TSP 构建的产品
+
+- [**TeamAgent**](https://github.com/alexazhou/TeamAgent) — MultiAgent 产品，让 Agent 组团帮你干活
+
 ## 什么是 TSP？
 
 以下分为两部分:

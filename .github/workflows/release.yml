@@ -62,11 +62,13 @@ jobs:
       - name: Prepare release assets
         run: |
           cd release
-          # Move files out of nested directories
+          # Move files from nested artifact directories to current directory
           for dir in */; do
             if [ -d "$dir" ]; then
-              mv "$dir"* . 2>/dev/null || true
-              rm -rf "$dir"
+              # Move all files from subdirectory to current directory
+              find "$dir" -type f -exec mv -v {} . \;
+              # Remove the now-empty subdirectory
+              rmdir "$dir" 2>/dev/null || rm -rf "$dir"
             fi
           done
           chmod +x gtsp-linux-* gtsp-darwin-* || true

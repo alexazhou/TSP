@@ -11,6 +11,8 @@ gtsp 极简 Demo：用 10 行代码让 agent 获得完整的工具能力。
 """
 
 import asyncio
+import os
+import tempfile
 from pytspclient import TSPClient, ToolCall
 
 GTSP_PATH = "./gtsp"  # 替换为实际路径，如 "/path/to/gtsp"
@@ -21,15 +23,25 @@ async def main():
 
     print(f"可用工具: {[t.name for t in client.tools]}")
 
+    # 使用临时目录，避免污染当前目录
+    tmp_dir = tempfile.gettempdir()
+    test_file = os.path.join(tmp_dir, "hello.txt")
+
     # 调用工具
-    await client.call_tool(ToolCall(name="write_file", input={"file_path": "hello.txt", "content": "Hello from gtsp!"}))
-    print("✓ 写入 hello.txt")
+    await client.call_tool(ToolCall(name="write_file", input={"file_path": test_file, "content": "Hello from gtsp!"}))
+    print(f"✓ 写入 {test_file}")
 
-    resp = await client.call_tool(ToolCall(name="read_file", input={"file_path": "hello.txt"}))
-    print(f"✓ 读取: {resp.output[:50]}...")
+    resp = await client.call_tool(ToolCall(name="read_file", input={"file_path": test_file}))
+    content = resp.output.get("content", "")
+    print(f"✓ 读取: {content[:50]}...")
 
-    resp = await client.call_tool(ToolCall(name="execute_bash", input={"command": "ls -la hello.txt"}))
-    print(f"✓ 执行: {resp.output.strip()}")
+    resp = await client.call_tool(ToolCall(name="execute_bash", input={"command": f"ls -la {test_file}"}))
+    stdout = resp.output.get("stdout", "")
+    print(f"✓ 执行: {stdout.strip()}")
+
+    # 清理测试文件
+    await client.call_tool(ToolCall(name="execute_bash", input={"command": f"rm -f {test_file}"}))
+    print(f"✓ 清理 {test_file}")
 
     await client.shutdown()
 

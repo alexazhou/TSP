@@ -8,6 +8,26 @@
 pip install pytspclient
 ```
 
+### 国内网络环境
+
+如遇网络问题，可使用镜像源：
+
+```bash
+# pip 使用清华源
+pip install pytspclient -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+构建 gtsp 时需设置 Go 代理：
+
+```bash
+# Go module 代理
+export GOPROXY=https://goproxy.cn,direct
+
+# Go 下载镜像（如需）
+# macOS: https://golang.google.cn/dl/
+# Linux: https://golang.google.cn/dl/
+```
+
 ## 使用方式
 
 ### 一、Normal API — 普通场景使用

@@ -40,7 +40,6 @@ class LLMAdapter(ABC):
         calls = self.parse_tool_calls(response)
         results = []
         for c in calls:
-            r = await self.tsp.call_tool(c.name, c.input)
-            r.call_id = c.id  # 关联调用 ID
+            r = await self.tsp.call_tool(c)
             results.append(r)
         return results

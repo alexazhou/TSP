@@ -219,12 +219,12 @@ class TSPClient:
     async def sandbox(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return await self.request("sandbox", config)
 
-    async def call_tool(self, name: str, input_params: Dict[str, Any]) -> ToolResult:
-        """调用工具，返回统一中间格式 ToolResult。"""
-        tsp_resp = await self.request("tool", input_params, tool=name)
+    async def call_tool(self, call: ToolCall) -> ToolResult:
+        """执行工具调用。"""
+        tsp_resp = await self.request("tool", call.input, tool=call.name)
         resp = TSPToolResponse.from_any(tsp_resp)
         output = json.dumps(resp.result, ensure_ascii=False) if isinstance(resp.result, dict) else str(resp.result)
-        return ToolResult(call_id="", name=name, output=output)
+        return ToolResult(call_id=call.id, name=call.name, output=output)
 
     async def shutdown(self):
         try:

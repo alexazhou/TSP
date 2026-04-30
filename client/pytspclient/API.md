@@ -28,9 +28,10 @@ await tsp.start() -> TSPClient
 Connect + initialize. Returns self for chaining.
 
 ```python
-await tsp.call_tool(name: str, input: dict) -> ToolResult
+call = ToolCall(name="read_file", input={"file_path": "hello.txt"})
+result = await tsp.call_tool(call) -> ToolResult
 ```
-Execute tool on server.
+Execute tool call.
 
 ```python
 await tsp.shutdown()
@@ -94,9 +95,9 @@ Convert results to LLM message format.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | str | LLM assigned ID |
 | `name` | str | Tool name |
 | `input` | dict | Tool parameters |
+| `id` | str | Call ID (optional, for result correlation) |
 
 ---
 

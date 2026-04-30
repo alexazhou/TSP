@@ -15,7 +15,7 @@ pip install pytspclient
 自己构建参数来调用工具。完整示例见 [demo_basic.py](../../examples/demo_basic.py)。
 
 ```python
-from pytspclient import TSPClient
+from pytspclient import TSPClient, ToolCall
 
 # 启动并初始化
 tsp = await TSPClient.from_stdio("./gtsp").start()
@@ -25,7 +25,8 @@ print(tsp.tools)    # 工具 Schema 列表
 print(tsp.workdir)  # TSP 工作目录
 
 # 调用工具
-result = await tsp.call_tool("read_file", {"file_path": "hello.txt"})
+call = ToolCall(name="read_file", input={"file_path": "hello.txt"})
+result = await tsp.call_tool(call)
 print(result.output)
 
 # 关闭

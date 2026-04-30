@@ -143,10 +143,10 @@ class TSPException(Exception):
 
 @dataclass
 class ToolCall:
-    """LLM 发起的工具调用（统一中间格式）"""
-    id: str       # LLM 分配的调用 ID（用于关联结果）
-    name: str     # 工具名
-    input: dict   # 工具参数
+    """工具调用请求"""
+    name: str                 # 工具名
+    input: Dict[str, Any]     # 工具参数
+    id: str = ""              # 调用 ID（可选，用于关联结果）
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为 OpenAI tool_calls 格式。"""

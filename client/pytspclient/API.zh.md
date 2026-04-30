@@ -28,9 +28,10 @@ await tsp.start() -> TSPClient
 连接 + 初始化。返回 self 支持链式调用。
 
 ```python
-await tsp.call_tool(name: str, input: dict) -> ToolResult
+call = ToolCall(name="read_file", input={"file_path": "hello.txt"})
+result = await tsp.call_tool(call) -> ToolResult
 ```
-在服务器上执行工具。
+执行工具调用。
 
 ```python
 await tsp.shutdown()
@@ -94,9 +95,9 @@ adapter.to_tool_messages(results) -> List[dict]
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `id` | str | LLM 分配的 ID |
 | `name` | str | 工具名称 |
 | `input` | dict | 工具参数 |
+| `id` | str | 调用 ID（可选，用于关联结果） |
 
 ---
 

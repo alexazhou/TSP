@@ -28,7 +28,7 @@ TSP provides standardized execution capabilities for AI applications at differen
    - Quickly develop tools like **coding assistants**, **automated DevOps tools**, or **data analysis bots**. TSP provides a ready-to-use set of "hands," enabling agents to operate file systems and shells directly like humans, completing the loop from planning to execution.
 
 2. **Standardized Tool Layer for LLM Applications**
-   - If your application already uses LLMs to process files or system tasks, you can **directly replace your custom tool logic** with TSP. This significantly reduces development and maintenance costs while providing more professional, secure (sandboxed), and high-performance tool implementations.
+   - If your application already uses LLMs to process files or system tasks, you can **directly replace the tool logic embedded in your application** with TSP. This significantly reduces development and maintenance costs while providing more professional, secure (sandboxed), and high-performance tool implementations.
 
 3. **Remote Machine Control in Business Systems**
    - Integrate TSP into enterprise-level systems as a standardized interface for agents or administrators to control machines remotely. Through protocol-based interaction, it not only simplifies cross-platform operations but also ensures security boundaries and traceability for remote actions.
@@ -105,6 +105,22 @@ See [spec/tools/](spec/tools/) for details.
 - **`client/`**: Client SDKs for multiple languages (currently Python).
 - **`examples/`**: Getting started examples and demo code, including the 10-line agent demo.
 - **`tsp_gui_tester/`**: A GUI tool for visual testing and debugging of TSP servers.
+
+## License
+
+MIT
+/`**: High-performance Go reference implementation (Server), single-file and zero-dependency.
+- **`client/`**: Client SDKs for multiple languages (currently Python).
+- **`examples/`**: Getting started examples and demo code, including the 10-line agent demo.
+- **`tsp_gui_tester/`**: A GUI tool for visual testing and debugging of TSP servers.
+
+## Quick Start
+
+1. **Get Server**: Download the [gTSP binary](https://github.com/alexazhou/TSP/releases) (or build it via `go build` in the `gtsp/` directory).
+2. **Install Client**: Install the SDK for your language. Currently, **Python** is officially supported (`pip install pytspclient`).
+3. **Run Example**: Start your agent by referring to the example code in the `examples/` directory.
+
+> 💡 **Note**: Currently, Python examples and client are provided. If you need support for other programming languages, please [open an issue](https://github.com/alexazhou/TSP/issues) to contact the author, or submit a PR directly.
 
 ## License
 

@@ -10,7 +10,7 @@
 
 ## Products Built with TSP
 
-- [**TogoSpace**](https://github.com/alexazhou/TogoSpace) — MultiAgent product, your AI teams, ready to go
+- [**TogoSpace**](https://github.com/alexazhou/TogoSpace) — Multi-Agent Collaboration, your AI teams, ready to go
 
 ## What is TSP?
 

@@ -10,7 +10,7 @@
 
 ## 使用 TSP 构建的产品
 
-- [**TogoSpace**](https://github.com/alexazhou/TogoSpace) — MultiAgent 产品，让 Agent 组团帮你干活
+- [**TogoSpace**](https://github.com/alexazhou/TogoSpace) — 多Agent 自由协作，让 Agent 组团帮你干活
 
 ## 什么是 TSP？
 

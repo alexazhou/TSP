@@ -18,7 +18,20 @@ It consists of two parts:
 
 1. **TSP Protocol**: **Tool Service Protocol** defines a standardized protocol that completely decouples tool capabilities from agent business code, allowing the agent's "brain" and "hands" to be implemented independently.
 
-2. **gTSP Implementation**: A standard, efficient, cross-platform tool service built according to the TSP protocol. Ready to use, no development needed, can be integrated with any agent. Enables you to build an autonomous agent in just 10 lines of code and focus on agent business logic.
+2. **gTSP Implementation**: A high-quality tool service built according to the TSP protocol. Single-file, zero-dependency, cross-platform, comprehensively covering agent needs. Easily integrate it into your own applications to build an autonomous agent in just 10 lines of code, focusing on business logic instead of low-level tooling.
+
+## Use Cases
+
+TSP provides standardized execution capabilities for AI applications at different levels, primarily suitable for the following scenarios:
+
+1. **Building Autonomous Agents with "Action Capabilities"**
+   - Quickly develop tools like **coding assistants**, **automated DevOps tools**, or **data analysis bots**. TSP provides a ready-to-use set of "hands," enabling agents to operate file systems and shells directly like humans, completing the loop from planning to execution.
+
+2. **Standardized Tool Layer for LLM Applications**
+   - If your application already uses LLMs to process files or system tasks, you can **directly replace your custom tool logic** with TSP. This significantly reduces development and maintenance costs while providing more professional, secure (sandboxed), and high-performance tool implementations.
+
+3. **Remote Machine Control in Business Systems**
+   - Integrate TSP into enterprise-level systems as a standardized interface for agents or administrators to control machines remotely. Through protocol-based interaction, it not only simplifies cross-platform operations but also ensures security boundaries and traceability for remote actions.
 
 ## Why TSP?
 
@@ -62,17 +75,6 @@ In one sentence: **TSP builds Agents, MCP extends Agents**.
 
 They work together: first build a general agent based on TSP, then add custom capabilities through MCP for personalized needs.
 
-## Use Cases
-
-TSP focuses on AI Agent development, enabling agents to autonomously execute system operations:
-
-- **Coding Assistant Agent**: Read code files, search function definitions, edit code, run tests—complete coding and debugging loop
-- **Data Analysis Agent**: Read data files, execute processing scripts, generate reports—automate data analysis workflows
-- **Operations Agent**: Execute deployment commands, view logs, manage processes—automate operations tasks
-- **Document Processing Agent**: Read documents, batch edit content, generate new documents—automate document management
-- **General Task Agent**: Plan steps based on user instructions, call tools to complete tasks without manual intervention
-- And other scenarios
-
 ## TSP Features
 
 - **Simple & Easy**: Build an autonomous agent in 10 lines of code
@@ -98,29 +100,11 @@ See [spec/tools/](spec/tools/) for details.
 
 ## Project Structure
 
-```
-TSP/
-├── spec/              # Protocol specification
-│   ├── TSP.md         # Protocol overview (English)
-│   ├── TSP.zh.md      # Protocol overview (Chinese)
-│   ├── Protocol.md    # Detailed protocol (English)
-│   ├── Protocol.zh.md # Detailed protocol (Chinese)
-│   └── tools/         # Tool definition docs
-│
-├── gtsp/              # Go implementation (reference)
-│   ├── src/           # Go source
-│   ├── dist/          # Built binaries
-│   └── README.md      # Usage guide
-│
-├── client/            # Client implementations
-│   └── pytspclient/   # Python client
-│
-├── examples/          # Example code
-│   ├── demo_basic.py
-│   └── demo_agent.py
-│
-└── tsp_gui_tester/    # GUI testing tool
-```
+- **`spec/`**: Protocol specifications and tool definition documentation.
+- **`gtsp/`**: High-performance Go reference implementation (Server), single-file and zero-dependency.
+- **`client/`**: Client SDKs for multiple languages (currently Python).
+- **`examples/`**: Getting started examples and demo code, including the 10-line agent demo.
+- **`tsp_gui_tester/`**: A GUI tool for visual testing and debugging of TSP servers.
 
 ## License
 

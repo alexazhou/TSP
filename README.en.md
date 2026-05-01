@@ -6,7 +6,7 @@
 
 **Build an autonomous agent in 10 lines of code:**
 
-![Demo: Build an autonomous agent in 10 lines of code](image/demo.gif)
+![Demo: Build an autonomous agent in 10 lines of code](image/demo_en.gif)
 
 ## Products Built with TSP
 

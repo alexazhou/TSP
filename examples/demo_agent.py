@@ -20,7 +20,7 @@ async def main():
 
     # 循环获取用户任务
     while True:
-        content = input("You: ").strip() # 获取用户新输入的任务
+        content = input("\033[1mYou:\033[0m ").strip() # 加粗 "You:"
         if not content: continue
         messages.append({"role": "user", "content": content})
 
@@ -34,7 +34,7 @@ async def main():
                 results = await adapter.execute_tool_calls(resp)
                 messages.extend(adapter.to_tool_messages(results))
             else:
-                print(f"Agent: {resp.choices[0].message.content}\n")
+                print(f"\n\033[100;97m Agent: {resp.choices[0].message.content} \033[0m\n")
                 break
 
 asyncio.run(main())

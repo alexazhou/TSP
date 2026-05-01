@@ -10,7 +10,7 @@
 
 ## 使用 TSP 构建的产品
 
-- [**TeamAgent**](https://github.com/alexazhou/TeamAgent) — MultiAgent 产品，让 Agent 组团帮你干活
+- [**TogoSpace**](https://github.com/alexazhou/TogoSpace) — MultiAgent 产品，让 Agent 组团帮你干活
 
 ## 什么是 TSP？
 
@@ -18,7 +18,7 @@
 
 1. **TSP 协议**：是 **Tool Service Protocol**（工具服务协议）的缩写，定义了一种标准化协议，将工具能力和 Agent 业务代码完全解耦，使得 Agent 的”大脑”和”手”可以分别实现。
 
-2. **gTSP 实现**：按照 TSP 协议实现的一套高质量工具服务。单文件，零依赖，跨平台，全面覆盖 Agent 需求。你可以轻松集成到自己的应用中，让你 10 行代码就可以完成一个自主行动的 Agent，从而可以专注在业务开发而不是底层工具上。
+2. **gTSP 实现**：按照 TSP 协议实现的一套高质量工具服务。单文件，零依赖，跨平台，全面覆盖 Agent 需求。你可以轻松集成到自己的应用中，**让你 10 行代码就可以完成一个自主行动的 Agent**，从而可以专注在业务开发而不是底层工具上。
 
 ## 适用场景
 

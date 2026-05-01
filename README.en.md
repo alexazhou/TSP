@@ -10,7 +10,7 @@
 
 ## Products Built with TSP
 
-- [**TeamAgent**](https://github.com/alexazhou/TeamAgent) — MultiAgent product, your AI teams, ready to go
+- [**TogoSpace**](https://github.com/alexazhou/TogoSpace) — MultiAgent product, your AI teams, ready to go
 
 ## What is TSP?
 
@@ -18,7 +18,7 @@ It consists of two parts:
 
 1. **TSP Protocol**: **Tool Service Protocol** defines a standardized protocol that completely decouples tool capabilities from agent business code, allowing the agent's "brain" and "hands" to be implemented independently.
 
-2. **gTSP Implementation**: A high-quality tool service built according to the TSP protocol. Single-file, zero-dependency, cross-platform, comprehensively covering agent needs. Easily integrate it into your own applications to build an autonomous agent in just 10 lines of code, focusing on business logic instead of low-level tooling.
+2. **gTSP Implementation**: A high-quality tool service built according to the TSP protocol. Single-file, zero-dependency, cross-platform, comprehensively covering agent needs. Easily integrate it into your own applications to **build an autonomous agent in just 10 lines of code**, focusing on business logic instead of low-level tooling.
 
 ## Use Cases
 

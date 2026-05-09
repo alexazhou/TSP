@@ -42,6 +42,7 @@ class TSPClient:
         self._stderr_task: Optional[asyncio.Task] = None
         self._tools: List[TSPTool] = []
         self._workdir: str = ""
+        self._connected: bool = False
 
     @classmethod
     def from_stdio(cls, command: Union[str, List[str]], request_timeout_sec: int = 30) -> "TSPClient":
@@ -80,6 +81,7 @@ class TSPClient:
         )
         self._read_task = asyncio.create_task(self._read_loop())
         self._stderr_task = asyncio.create_task(self._read_stderr_loop())
+        self._connected = True
         return self
 
     async def start(self) -> "TSPClient":
@@ -111,6 +113,7 @@ class TSPClient:
                     self.process.kill()
                     await self.process.wait()
         self.process = None
+        self._connected = False
         self._fail_pending(TSPException(TSP_ERROR_CONNECTION_CLOSED, "TSP connection closed"))
 
     def _fail_pending(self, exc: Exception):
@@ -153,6 +156,7 @@ class TSPClient:
         except asyncio.CancelledError:
             pass
         finally:
+            self._connected = False
             self._fail_pending(TSPException(TSP_ERROR_STDOUT_CLOSED, "TSP stdout closed"))
 
     async def _read_stderr_loop(self) -> None:
@@ -166,7 +170,9 @@ class TSPClient:
             pass
 
     async def request(self, method: str, input_params: Any, tool: Optional[str] = None) -> Any:
-        if not self.process or not self.process.stdin:
+        if not self._connected or not self.process or not self.process.stdin:
+            if not self._connected:
+                raise TSPException(TSP_ERROR_STDOUT_CLOSED, "TSP connection is closed")
             raise RuntimeError("Client not connected")
 
         req_id = str(uuid.uuid4())

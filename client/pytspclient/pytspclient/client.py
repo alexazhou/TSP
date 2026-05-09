@@ -92,6 +92,9 @@ class TSPClient:
 
     async def disconnect(self):
         """断开连接并终止 TSP 进程。"""
+        self._connected = False
+        self._fail_pending(TSPException(TSP_ERROR_CONNECTION_CLOSED, "TSP connection closed"))
+
         if self._read_task:
             self._read_task.cancel()
             await asyncio.gather(self._read_task, return_exceptions=True)
@@ -113,8 +116,6 @@ class TSPClient:
                     self.process.kill()
                     await self.process.wait()
         self.process = None
-        self._connected = False
-        self._fail_pending(TSPException(TSP_ERROR_CONNECTION_CLOSED, "TSP connection closed"))
 
     def _fail_pending(self, exc: Exception):
         for future in self.in_flight.values():

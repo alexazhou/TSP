@@ -292,9 +292,41 @@ func TestSearchHandlers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		result := res.([]string)
-		if len(result) != 2 {
-			t.Errorf("expected 2 files, got %d", len(result))
+		result, ok := res.(tools.GlobResult)
+		if !ok {
+			t.Fatalf("expected GlobResult, got %T", res)
+		}
+		if len(result.Matches) != 2 {
+			t.Errorf("expected 2 files, got %d", len(result.Matches))
+		}
+		for _, m := range result.Matches {
+			if !strings.HasSuffix(m, ".go") {
+				t.Errorf("expected .go file, got %s", m)
+			}
+		}
+		// Verify sorted by mod time (file1 was created before file2)
+		if len(result.Matches) == 2 {
+			fi1, _ := os.Stat(result.Matches[0])
+			fi2, _ := os.Stat(result.Matches[1])
+			if !fi1.ModTime().After(fi2.ModTime()) && !fi1.ModTime().Equal(fi2.ModTime()) {
+				t.Errorf("expected matches sorted by mod time (newest first), but %s is older than %s",
+					result.Matches[0], result.Matches[1])
+			}
+		}
+	})
+
+	t.Run("glob empty result", func(t *testing.T) {
+		params := json.RawMessage(`{"pattern": "nonexistent*.xyz", "path": "` + tmpDir + `"}`)
+		res, err := tools.GlobHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, ok := res.(tools.GlobResult)
+		if !ok {
+			t.Fatalf("expected GlobResult, got %T", res)
+		}
+		if len(result.Matches) != 0 {
+			t.Errorf("expected 0 matches, got %d", len(result.Matches))
 		}
 	})
 }

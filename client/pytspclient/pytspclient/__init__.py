@@ -5,6 +5,7 @@ from .types import (
     TSPRequest, TSPResponse, TSPEvent, TSPException,
     TSPInitializeResult, TSPToolResponse, TSPTool, TSPCapabilities,
     ToolCall, ToolResult,
+    TSP_ERROR_STDOUT_CLOSED, TSP_ERROR_CONNECTION_CLOSED,
 )
 from .adapters import LLMAdapter, TspAnthropicAdapter, TspOpenAIAdapter
 
@@ -14,5 +15,6 @@ __all__ = [
     "TSPRequest", "TSPResponse", "TSPEvent", "TSPException",
     "TSPInitializeResult", "TSPToolResponse", "TSPTool", "TSPCapabilities",
     "ToolCall", "ToolResult",
+    "TSP_ERROR_STDOUT_CLOSED", "TSP_ERROR_CONNECTION_CLOSED",
     "LLMAdapter", "TspAnthropicAdapter", "TspOpenAIAdapter",
 ]

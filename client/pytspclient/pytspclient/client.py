@@ -10,6 +10,7 @@ from .types import (
     TSPRequest, TSPResponse, TSPEvent, TSPException,
     TSPInitializeResult, TSPTool, TSPToolResponse,
     ToolCall, ToolResult,
+    TSP_ERROR_STDOUT_CLOSED, TSP_ERROR_CONNECTION_CLOSED,
 )
 from .adapters.anthropic import TspAnthropicAdapter
 from .adapters.openai import TspOpenAIAdapter
@@ -110,7 +111,7 @@ class TSPClient:
                     self.process.kill()
                     await self.process.wait()
         self.process = None
-        self._fail_pending(RuntimeError("TSP connection closed"))
+        self._fail_pending(TSPException(TSP_ERROR_CONNECTION_CLOSED, "TSP connection closed"))
 
     def _fail_pending(self, exc: Exception):
         for future in self.in_flight.values():
@@ -152,7 +153,7 @@ class TSPClient:
         except asyncio.CancelledError:
             pass
         finally:
-            self._fail_pending(RuntimeError("TSP stdout closed"))
+            self._fail_pending(TSPException(TSP_ERROR_STDOUT_CLOSED, "TSP stdout closed"))
 
     async def _read_stderr_loop(self) -> None:
         try:

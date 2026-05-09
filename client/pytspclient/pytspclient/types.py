@@ -129,6 +129,11 @@ class TSPEvent:
         )
 
 
+# ── TSP 预定义错误码 ──
+TSP_ERROR_STDOUT_CLOSED = "tsp/stdout-closed"
+TSP_ERROR_CONNECTION_CLOSED = "tsp/connection-closed"
+
+
 class TSPException(Exception):
     def __init__(self, code: str, message: str, data: Any = None):
         super().__init__(f"[{code}] {message}")

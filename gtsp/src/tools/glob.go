@@ -4,7 +4,9 @@ import (
 	"gTSP/src/api"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
+	"sort"
 )
 
 // GlobParams defines input for glob
@@ -12,6 +14,11 @@ type GlobParams struct {
 	Pattern       string `json:"pattern"`
 	Path          string `json:"path,omitempty"`
 	CaseSensitive bool   `json:"case_sensitive,omitempty"`
+}
+
+// GlobResult wraps the list of matching file paths
+type GlobResult struct {
+	Matches []string `json:"matches"`
 }
 
 var GlobSchema = api.ToolDefinition{
@@ -68,10 +75,19 @@ func GlobHandler(session api.Session, params json.RawMessage) (interface{}, erro
 		return nil, fmt.Errorf("invalid glob pattern: %v", err)
 	}
 
-	// Filter empty results
 	if matches == nil {
-		return []string{}, nil
+		matches = []string{}
 	}
 
-	return matches, nil
+	// Sort by modification time (newest first)
+	sort.Slice(matches, func(i, j int) bool {
+		fi, errI := os.Stat(matches[i])
+		fj, errJ := os.Stat(matches[j])
+		if errI != nil || errJ != nil {
+			return false
+		}
+		return fi.ModTime().After(fj.ModTime())
+	})
+
+	return GlobResult{Matches: matches}, nil
 }

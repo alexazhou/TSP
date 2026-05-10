@@ -103,6 +103,15 @@ func (d *Dispatcher) HandleRequest(session Session, client Client, data []byte) 
 			return
 		}
 
+		// Validate params against schema
+		if schema, ok := d.schemas[req.Tool]; ok {
+			if err := d.validateParams(schema, req.Input); err != nil {
+				id := req.ID
+				d.SendError(session, client, &id, ErrInvalidParams, err.Error())
+				return
+			}
+		}
+
 		result, err := handler(session, req.Input)
 		if err != nil {
 			id := req.ID
@@ -119,6 +128,68 @@ func (d *Dispatcher) HandleRequest(session Session, client Client, data []byte) 
 		id := req.ID
 		d.SendError(session, client, &id, ErrParseError, fmt.Sprintf("unknown method: %s", req.Method))
 	}
+}
+
+// validateParams validates raw JSON params against the tool's input schema.
+// It checks that all required fields are present and that no unknown fields
+// are included (since all schemas use additionalProperties: false).
+func (d *Dispatcher) validateParams(schema ToolDefinition, raw json.RawMessage) error {
+	var params map[string]interface{}
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return fmt.Errorf("invalid params: %v", err)
+	}
+
+	inputSchema, ok := schema.InputSchema.(map[string]interface{})
+	if !ok {
+		return nil // no schema to validate against
+	}
+
+	// Check additionalProperties
+	propsRaw, hasProps := inputSchema["properties"]
+	additionalProps, _ := inputSchema["additionalProperties"].(bool)
+
+	var knownProps map[string]bool
+	if hasProps {
+		propsMap, ok := propsRaw.(map[string]interface{})
+		if ok {
+			knownProps = make(map[string]bool, len(propsMap))
+			for k := range propsMap {
+				knownProps[k] = true
+			}
+		}
+	}
+
+	// If additionalProperties is false, reject unknown fields
+	if !additionalProps && knownProps != nil {
+		for k := range params {
+			if !knownProps[k] {
+				return fmt.Errorf("unknown parameter: %q", k)
+			}
+		}
+	}
+
+	// Check required fields
+	if requiredRaw, ok := inputSchema["required"]; ok {
+		// required can be []string or []interface{} depending on how the schema was constructed
+		var requiredNames []string
+		switch v := requiredRaw.(type) {
+		case []interface{}:
+			for _, r := range v {
+				if name, ok := r.(string); ok {
+					requiredNames = append(requiredNames, name)
+				}
+			}
+		case []string:
+			requiredNames = v
+		}
+		for _, name := range requiredNames {
+			if _, found := params[name]; !found {
+				return fmt.Errorf("missing required parameter: %q", name)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (d *Dispatcher) handleInitialize(session Session, client Client, req Request) {

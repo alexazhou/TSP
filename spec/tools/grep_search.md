@@ -17,7 +17,7 @@ For finding files by name rather than content, use [`glob`](./glob.md).
     "tool": "grep_search",
     "input": {
         "pattern": "func\\s+New\\w+",
-        "dir_path": "src",
+        "path": "src",
         "include_pattern": "*.go",
         "context": 2
     }
@@ -29,7 +29,7 @@ For finding files by name rather than content, use [`glob`](./glob.md).
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `pattern` | `string` | **Yes** | The search pattern. Interpreted as a Go regular expression unless `fixed_strings` is `true`. |
-| `dir_path` | `string` | No | Subdirectory to search within. Default: workspace root (`.`). Subject to workspace sandbox. |
+| `path` | `string` | No | Subdirectory to search within. Default: workspace root (`.`). Subject to workspace sandbox. |
 | `include_pattern` | `string` | No | Glob pattern to restrict which files are searched (e.g., `"*.go"`, `"*.{ts,tsx}"`). |
 | `exclude_pattern` | `string` | No | Glob pattern to exclude files (e.g., `"*_test.go"`). *(Currently applied at filename level.)* |
 | `fixed_strings` | `boolean` | No | Treat `pattern` as a literal string (no regex). Default: `false`. |

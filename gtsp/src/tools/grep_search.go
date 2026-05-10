@@ -14,7 +14,7 @@ import (
 // GrepSearchParams defines input for grep_search according to doc/tool_spec/grep_search.md
 type GrepSearchParams struct {
 	Pattern           string `json:"pattern"`
-	DirPath           string `json:"path,omitempty"`
+	Path              string `json:"path,omitempty"`
 	IncludePattern    string `json:"include_pattern,omitempty"`
 	ExcludePattern    string `json:"exclude_pattern,omitempty"`
 	FixedStrings      bool   `json:"fixed_strings,omitempty"`
@@ -103,7 +103,7 @@ func GrepSearchHandler(session api.Session, params json.RawMessage) (interface{}
 		perFileMax = 10 // Default as per spec
 	}
 
-	searchDir := p.DirPath
+	searchDir := p.Path
 	if searchDir == "" {
 		searchDir = "."
 	}
@@ -146,6 +146,11 @@ func GrepSearchHandler(session api.Session, params json.RawMessage) (interface{}
 		// Basic file filtering
 		if p.IncludePattern != "" {
 			if matched, _ := filepath.Match(p.IncludePattern, info.Name()); !matched {
+				return nil
+			}
+		}
+		if p.ExcludePattern != "" {
+			if matched, _ := filepath.Match(p.ExcludePattern, info.Name()); matched {
 				return nil
 			}
 		}

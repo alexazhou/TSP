@@ -315,6 +315,122 @@ func TestSearchHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("grep_search include_pattern", func(t *testing.T) {
+		// Only search *.go files — should find pattern in both files
+		params := json.RawMessage(`{"pattern": "package main", "path": "` + tmpDir + `", "include_pattern": "*.go"}`)
+		res, err := tools.GrepSearchHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.GrepSearchResult)
+		if len(result.Matches) != 2 {
+			t.Errorf("expected 2 matches, got %d", len(result.Matches))
+		}
+	})
+
+	t.Run("grep_search exclude_pattern", func(t *testing.T) {
+		// Exclude util.go — should only match main.go
+		params := json.RawMessage(`{"pattern": "package main", "path": "` + tmpDir + `", "exclude_pattern": "util.go"}`)
+		res, err := tools.GrepSearchHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.GrepSearchResult)
+		if len(result.Matches) != 1 {
+			t.Errorf("expected 1 match, got %d", len(result.Matches))
+		}
+		if len(result.Matches) > 0 && !strings.Contains(result.Matches[0].FilePath, "main.go") {
+			t.Errorf("expected match in main.go, got %s", result.Matches[0].FilePath)
+		}
+	})
+
+	t.Run("grep_search exclude_pattern glob wildcard", func(t *testing.T) {
+		// Exclude all .go files — should find no matches
+		params := json.RawMessage(`{"pattern": "package main", "path": "` + tmpDir + `", "exclude_pattern": "*.go"}`)
+		res, err := tools.GrepSearchHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.GrepSearchResult)
+		if len(result.Matches) != 0 {
+			t.Errorf("expected 0 matches, got %d", len(result.Matches))
+		}
+	})
+
+	t.Run("grep_search include and exclude combined", func(t *testing.T) {
+		// Include *.go but exclude util.go — only main.go remains
+		params := json.RawMessage(`{"pattern": "func", "path": "` + tmpDir + `", "include_pattern": "*.go", "exclude_pattern": "util.go"}`)
+		res, err := tools.GrepSearchHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.GrepSearchResult)
+		for _, m := range result.Matches {
+			if strings.Contains(m.FilePath, "util.go") {
+				t.Errorf("util.go should have been excluded, got match: %s", m.FilePath)
+			}
+		}
+	})
+
+	t.Run("grep_search regex", func(t *testing.T) {
+		params := json.RawMessage(`{"pattern": "func \\w+\\(", "path": "` + tmpDir + `"}`)
+		res, err := tools.GrepSearchHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.GrepSearchResult)
+		if len(result.Matches) == 0 {
+			t.Error("expected at least one regex match")
+		}
+	})
+
+	t.Run("grep_search case insensitive default", func(t *testing.T) {
+		params := json.RawMessage(`{"pattern": "PACKAGE MAIN", "path": "` + tmpDir + `", "fixed_strings": true}`)
+		res, err := tools.GrepSearchHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.GrepSearchResult)
+		if len(result.Matches) != 2 {
+			t.Errorf("expected 2 case-insensitive matches, got %d", len(result.Matches))
+		}
+	})
+
+	t.Run("grep_search case sensitive", func(t *testing.T) {
+		params := json.RawMessage(`{"pattern": "PACKAGE MAIN", "path": "` + tmpDir + `", "fixed_strings": true, "case_sensitive": true}`)
+		res, err := tools.GrepSearchHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.GrepSearchResult)
+		if len(result.Matches) != 0 {
+			t.Errorf("expected 0 case-sensitive matches, got %d", len(result.Matches))
+		}
+	})
+
+	t.Run("grep_search total_max_matches truncation", func(t *testing.T) {
+		params := json.RawMessage(`{"pattern": "package main", "path": "` + tmpDir + `", "total_max_matches": 1}`)
+		res, err := tools.GrepSearchHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.GrepSearchResult)
+		if len(result.Matches) != 1 {
+			t.Errorf("expected 1 match due to limit, got %d", len(result.Matches))
+		}
+		if !result.Truncated {
+			t.Error("expected truncated=true")
+		}
+	})
+
+	t.Run("grep_search invalid regex error", func(t *testing.T) {
+		params := json.RawMessage(`{"pattern": "[invalid"}`)
+		_, err := tools.GrepSearchHandler(session, params)
+		if err == nil || !strings.Contains(err.Error(), "invalid regex") {
+			t.Errorf("expected invalid regex error, got %v", err)
+		}
+	})
+
 	t.Run("glob empty result", func(t *testing.T) {
 		params := json.RawMessage(`{"pattern": "nonexistent*.xyz", "path": "` + tmpDir + `"}`)
 		res, err := tools.GlobHandler(session, params)

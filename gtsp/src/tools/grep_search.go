@@ -87,7 +87,25 @@ var GrepSearchSchema = api.ToolDefinition{
 	},
 }
 
-// GrepSearchHandler implements code searching with safety limits
+// defaultSkipDirs are directories always skipped during grep_search traversal.
+var defaultSkipDirs = map[string]bool{
+	".git": true, "node_modules": true, ".hg": true, ".svn": true,
+	"__pycache__": true, ".venv": true, "venv": true,
+	".tox": true, "dist": true, "build": true, ".idea": true, ".vscode": true,
+}
+
+// defaultSkipExts are file extensions always excluded from grep_search results.
+var defaultSkipExts = map[string]bool{
+	".pyc": true, ".pyo": true, ".pyd": true,
+	".class": true, ".jar": true,
+	".o": true, ".a": true, ".so": true, ".dylib": true, ".dll": true, ".exe": true,
+	".zip": true, ".tar": true, ".gz": true, ".bz2": true, ".xz": true, ".rar": true,
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".bmp": true, ".ico": true, ".svg": true,
+	".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
+	".mp3": true, ".mp4": true, ".mov": true, ".avi": true,
+}
+
+
 func GrepSearchHandler(session api.Session, params json.RawMessage) (interface{}, error) {
 	var p GrepSearchParams
 	if err := json.Unmarshal(params, &p); err != nil {
@@ -136,10 +154,14 @@ func GrepSearchHandler(session api.Session, params json.RawMessage) (interface{}
 
 	err = filepath.Walk(searchDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
-			// Skip directories that match ignore lists
-			if info != nil && (info.Name() == ".git" || info.Name() == "node_modules") {
+			if info != nil && defaultSkipDirs[info.Name()] {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+
+		// Skip default excluded extensions
+		if defaultSkipExts[strings.ToLower(filepath.Ext(info.Name()))] {
 			return nil
 		}
 

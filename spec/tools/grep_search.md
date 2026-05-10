@@ -38,7 +38,9 @@ For finding files by name rather than content, use [`glob`](./glob.md).
 | `total_max_matches` | `integer` | No | Maximum total matches to return across all files. Default: `100`. |
 | `max_matches_per_file` | `integer` | No | Maximum matches to return per file. Default: `10`. |
 
-**Always skipped:** `.git/`, `node_modules/`
+**Always skipped directories:** `.git/`, `.hg/`, `.svn/`, `node_modules/`, `__pycache__/`, `.venv/`, `venv/`, `.tox/`, `dist/`, `build/`, `.idea/`, `.vscode/`
+
+**Always skipped file types:** compiled/binary artifacts (`.pyc`, `.class`, `.o`, `.so`, `.exe`, …), archives (`.zip`, `.tar`, `.gz`, …), media (`.png`, `.jpg`, `.mp4`, …), documents (`.pdf`, `.docx`, …)
 
 ## Response
 

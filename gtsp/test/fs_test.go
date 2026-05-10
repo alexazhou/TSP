@@ -275,7 +275,7 @@ func TestSearchHandlers(t *testing.T) {
 	session := setupTestSession("/") // Allow root for simple testing with absolute paths
 
 	t.Run("grep_search fixed", func(t *testing.T) {
-		params := json.RawMessage(`{"pattern": "fmt.Println", "dir_path": "` + tmpDir + `", "fixed_strings": true}`)
+		params := json.RawMessage(`{"pattern": "fmt.Println", "path": "` + tmpDir + `", "fixed_strings": true}`)
 		res, err := tools.GrepSearchHandler(session, params)
 		if err != nil {
 			t.Fatal(err)

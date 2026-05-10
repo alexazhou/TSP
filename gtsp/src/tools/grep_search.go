@@ -14,7 +14,7 @@ import (
 // GrepSearchParams defines input for grep_search according to doc/tool_spec/grep_search.md
 type GrepSearchParams struct {
 	Pattern           string `json:"pattern"`
-	DirPath           string `json:"dir_path,omitempty"`
+	DirPath           string `json:"path,omitempty"`
 	IncludePattern    string `json:"include_pattern,omitempty"`
 	ExcludePattern    string `json:"exclude_pattern,omitempty"`
 	FixedStrings      bool   `json:"fixed_strings,omitempty"`
@@ -49,7 +49,7 @@ var GrepSearchSchema = api.ToolDefinition{
 				"type":        "string",
 				"description": "The regex or literal pattern to search for.",
 			},
-			"dir_path": map[string]interface{}{
+			"path": map[string]interface{}{
 				"type":        "string",
 				"description": "Optional: Subdirectory to search within. Defaults to the current directory.",
 			},

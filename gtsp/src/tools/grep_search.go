@@ -40,7 +40,7 @@ type GrepSearchResult struct {
 
 var GrepSearchSchema = api.ToolDefinition{
 	Name:        "grep_search",
-	Description: "- High-performance code searching tool\n- Supports both literal strings and regular expressions\n- Provides context lines around matches to help understand code logic\n- Includes built-in safety limits for total matches and matches per file\n- Use this tool when you need to find specific strings, patterns, or definitions across multiple files without reading them one by one",
+	Description: "- High-performance code searching tool\n- Supports both literal strings and regular expressions\n- Provides context lines around matches to help understand code logic\n- Includes built-in safety limits for total matches and matches per file\n- Use this tool when you need to find specific strings, patterns, or definitions across multiple files without reading them one by one\n- NOTE: Common build, dependency, and version control directories (e.g., .git, node_modules, dist, build, .venv) and binary/media file types are automatically excluded to improve performance and reduce noise.",
 	InputSchema: map[string]interface{}{
 		"$schema": "https://json-schema.org/draft/2020-12/schema",
 		"type":    "object",

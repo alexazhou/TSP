@@ -8,6 +8,9 @@ Use `grep_search` to find where a symbol, string, or pattern appears across many
 
 For finding files by name rather than content, use [`glob`](./glob.md).
 
+> [!NOTE]
+> Common build, dependency, and version control directories (e.g., `.git`, `node_modules`, `dist`, `build`, `.venv`) and binary/media/document file types are automatically excluded to improve performance and reduce noise.
+
 ## Request
 
 ```json

@@ -22,7 +22,19 @@
 *   **`total_max_matches`** (integer, 可选): 全局返回的最大匹配数量（默认 100）。
 *   **`max_matches_per_file`** (integer, 可选): 单个文件内返回的最大匹配数量（默认 10）。
 
-## 4. 返回值格式
+## 4. 默认排除规则
+为了提高性能并避免干扰，以下目录和文件类型在默认情况下会被忽略：
+
+### 默认忽略的目录
+`.git/`, `.hg/`, `.svn/`, `node_modules/`, `__pycache__/`, `.venv/`, `venv/`, `.tox/`, `dist/`, `build/`, `.idea/`, `.vscode/`
+
+### 默认忽略的文件类型
+*   **编译/二进制产物**: `.pyc`, `.pyo`, `.pyd`, `.class`, `.jar`, `.o`, `.a`, `.so`, `.dylib`, `.dll`, `.exe`
+*   **压缩包**: `.zip`, `.tar`, `.gz`, `.bz2`, `.xz`, `.rar`
+*   **媒体文件**: `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.ico`, `.svg`, `.mp3`, `.mp4`, `.mov`, `.avi`
+*   **文档**: `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`
+
+## 5. 返回值格式
 *   **`matches`** (array): 匹配项列表。
     *   **`file_path`** (string): 文件路径。
     *   **`line_number`** (integer): 行号。

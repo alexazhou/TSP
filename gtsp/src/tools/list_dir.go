@@ -118,7 +118,7 @@ func ListDirHandler(session api.Session, params json.RawMessage) (interface{}, e
 		limit = defaultListDirLimit
 	}
 
-	err := walkDir(p.Path, p.Path, 0, maxDepth, limit, &result.Items)
+	err := walkDir(p.Path, p.Path, 0, maxDepth, limit, p.IgnorePatterns, &result.Items)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("directory not found: %s", p.Path)
@@ -133,7 +133,7 @@ func ListDirHandler(session api.Session, params json.RawMessage) (interface{}, e
 	return result, nil
 }
 
-func walkDir(root, current string, currentDepth, maxDepth, limit int, items *[]FileInfo) error {
+func walkDir(root, current string, currentDepth, maxDepth, limit int, ignorePatterns []string, items *[]FileInfo) error {
 	if len(*items) >= limit {
 		return nil
 	}
@@ -171,6 +171,18 @@ func walkDir(root, current string, currentDepth, maxDepth, limit int, items *[]F
 			continue
 		}
 
+		// Check custom ignore_patterns
+		ignored := false
+		for _, pat := range ignorePatterns {
+			if matched, _ := filepath.Match(pat, entry.Name()); matched {
+				ignored = true
+				break
+			}
+		}
+		if ignored {
+			continue
+		}
+
 		*items = append(*items, FileInfo{
 			Path:    relPath,
 			Size:    info.Size(),
@@ -179,7 +191,7 @@ func walkDir(root, current string, currentDepth, maxDepth, limit int, items *[]F
 		})
 
 		if entry.IsDir() && currentDepth < maxDepth {
-			_ = walkDir(root, filepath.Join(current, entry.Name()), currentDepth+1, maxDepth, limit, items)
+			_ = walkDir(root, filepath.Join(current, entry.Name()), currentDepth+1, maxDepth, limit, ignorePatterns, items)
 		}
 	}
 	return nil

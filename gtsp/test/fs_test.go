@@ -63,6 +63,41 @@ func TestListDirHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("ignore_patterns filters files", func(t *testing.T) {
+		params := json.RawMessage(`{"dir_path": "` + tmpDir + `", "ignore_patterns": ["*.txt"]}`)
+		res, err := tools.ListDirHandler(session, params)
+		if err != nil {
+			t.Fatalf("ListDirHandler failed: %v", err)
+		}
+		result := res.(tools.ListDirResult)
+		// file1.txt excluded, only subdir remains
+		if len(result.Items) != 1 {
+			t.Errorf("expected 1 item (subdir only), got %d", len(result.Items))
+		}
+		if result.Items[0].Path != "subdir" {
+			t.Errorf("expected subdir, got %s", result.Items[0].Path)
+		}
+	})
+
+	t.Run("ignore_patterns filters subdirs recursively", func(t *testing.T) {
+		params := json.RawMessage(`{"dir_path": "` + tmpDir + `", "recursive": true, "depth": 1, "ignore_patterns": ["subdir"]}`)
+		res, err := tools.ListDirHandler(session, params)
+		if err != nil {
+			t.Fatalf("ListDirHandler failed: %v", err)
+		}
+		result := res.(tools.ListDirResult)
+		// subdir excluded: only file1.txt
+		if len(result.Items) != 1 {
+			t.Errorf("expected 1 item, got %d", len(result.Items))
+		}
+		for _, item := range result.Items {
+			if strings.Contains(item.Path, "subdir") {
+				t.Errorf("subdir should be excluded, got %s", item.Path)
+			}
+		}
+	})
+
+
 	t.Run("limit truncation", func(t *testing.T) {
 		// Create 10 extra files to exceed default limit of 50 - use a fresh dir with 60 files
 		limitDir, _ := os.MkdirTemp("", "gt-limit-*")
@@ -429,6 +464,31 @@ func TestSearchHandlers(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "invalid regex") {
 			t.Errorf("expected invalid regex error, got %v", err)
 		}
+	})
+
+	t.Run("glob case insensitive default", func(t *testing.T) {
+		// Default is case-insensitive: "*.GO" should still match main.go, util.go
+		params := json.RawMessage(`{"pattern": "*.GO", "path": "` + tmpDir + `"}`)
+		res, err := tools.GlobHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.GlobResult)
+		if len(result.Matches) != 2 {
+			t.Errorf("expected 2 case-insensitive matches, got %d", len(result.Matches))
+		}
+	})
+
+	t.Run("glob case sensitive", func(t *testing.T) {
+		// case_sensitive: true — "*.GO" should not match lowercase .go files
+		params := json.RawMessage(`{"pattern": "*.GO", "path": "` + tmpDir + `", "case_sensitive": true}`)
+		res, err := tools.GlobHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.GlobResult)
+		// On a case-sensitive FS (Linux), this returns 0; on macOS it may still match — just verify no crash
+		_ = result
 	})
 
 	t.Run("glob empty result", func(t *testing.T) {

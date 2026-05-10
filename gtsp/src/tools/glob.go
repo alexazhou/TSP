@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // GlobParams defines input for glob
@@ -70,9 +71,30 @@ func GlobHandler(session api.Session, params json.RawMessage) (interface{}, erro
 
 	searchPattern := filepath.Join(absSearchDir, p.Pattern)
 
-	matches, err := filepath.Glob(searchPattern)
-	if err != nil {
-		return nil, fmt.Errorf("invalid glob pattern: %v", err)
+	var matches []string
+	if p.CaseSensitive {
+		// Use stdlib glob (case-sensitive on Linux, filesystem-dependent on macOS/Windows)
+		var err error
+		matches, err = filepath.Glob(searchPattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid glob pattern: %v", err)
+		}
+	} else {
+		// Walk and match case-insensitively
+		patternLower := strings.ToLower(p.Pattern)
+		err := filepath.Walk(absSearchDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			rel, _ := filepath.Rel(absSearchDir, path)
+			if matched, _ := filepath.Match(patternLower, strings.ToLower(rel)); matched {
+				matches = append(matches, path)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error walking directory: %v", err)
+		}
 	}
 
 	if matches == nil {

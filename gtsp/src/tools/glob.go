@@ -69,6 +69,11 @@ func GlobHandler(session api.Session, params json.RawMessage) (interface{}, erro
 		return nil, err
 	}
 
+	// Check that the search directory actually exists
+	if _, err := os.Stat(absSearchDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("path not found: %s", absSearchDir)
+	}
+
 	searchPattern := filepath.Join(absSearchDir, p.Pattern)
 
 	var matches []string

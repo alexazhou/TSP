@@ -61,6 +61,7 @@ The result is a JSON array of **absolute** file paths matching the pattern, or a
 | Condition | Error message |
 |---|---|
 | Invalid glob syntax | `invalid glob pattern: ...` |
+| `path` does not exist | `path not found: /absolute/path` |
 | `path` outside workspace | `security error: path "..." is outside of workspace root "..."` |
 | Invalid parameters | `invalid params: <details>` |
 

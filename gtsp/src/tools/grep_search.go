@@ -136,6 +136,11 @@ func GrepSearchHandler(session api.Session, params json.RawMessage) (interface{}
 	}
 	searchDir = absSearchDir
 
+	// Check that the search directory actually exists
+	if _, err := os.Stat(searchDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("path not found: %s", searchDir)
+	}
+
 	var re *regexp.Regexp
 	var err error
 	if !p.FixedStrings {

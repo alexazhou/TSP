@@ -98,6 +98,7 @@ When `truncated` is `true`, increase these limits or narrow the search with `dir
 | Condition | Error message |
 |---|---|
 | Invalid regex | `invalid regex: <details>` |
+| `path` does not exist | `path not found: /absolute/path` |
 | `dir_path` outside workspace | `security error: path "..." is outside of workspace root "..."` |
 | Invalid parameters | `invalid params: <details>` |
 

@@ -466,6 +466,18 @@ func TestSearchHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("grep_search path not found", func(t *testing.T) {
+		nonExistent := filepath.Join(tmpDir, "does_not_exist")
+		params := json.RawMessage(`{"pattern": "func", "path": "` + nonExistent + `"}`)
+		_, err := tools.GrepSearchHandler(session, params)
+		if err == nil {
+			t.Fatal("expected error for non-existent path, got nil")
+		}
+		if !strings.Contains(err.Error(), "path not found") {
+			t.Errorf("expected 'path not found' error, got: %v", err)
+		}
+	})
+
 	t.Run("glob case insensitive default", func(t *testing.T) {
 		// Default is case-insensitive: "*.GO" should still match main.go, util.go
 		params := json.RawMessage(`{"pattern": "*.GO", "path": "` + tmpDir + `"}`)
@@ -503,6 +515,18 @@ func TestSearchHandlers(t *testing.T) {
 		}
 		if len(result.Matches) != 0 {
 			t.Errorf("expected 0 matches, got %d", len(result.Matches))
+		}
+	})
+
+	t.Run("glob path not found", func(t *testing.T) {
+		nonExistent := filepath.Join(tmpDir, "does_not_exist")
+		params := json.RawMessage(`{"pattern": "*.go", "path": "` + nonExistent + `"}`)
+		_, err := tools.GlobHandler(session, params)
+		if err == nil {
+			t.Fatal("expected error for non-existent path, got nil")
+		}
+		if !strings.Contains(err.Error(), "path not found") {
+			t.Errorf("expected 'path not found' error, got: %v", err)
 		}
 	})
 }

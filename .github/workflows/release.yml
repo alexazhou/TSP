@@ -25,7 +25,7 @@ jobs:
           go-version: '1.21'
 
       - name: Build
-        working-directory: gtsp
+        working-directory: gtsp/src
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -34,8 +34,8 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY_NAME="${BINARY_NAME}.exe"
           fi
-          go build -ldflags="-s -w" -o "${BINARY_NAME}" ./src/
-          echo "BINARY_PATH=gtsp/${BINARY_NAME}" >> $GITHUB_ENV
+          go build -ldflags="-s -w" -o "${BINARY_NAME}" main.go
+          echo "BINARY_PATH=gtsp/src/${BINARY_NAME}" >> $GITHUB_ENV
           echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
 
       - name: Upload artifact

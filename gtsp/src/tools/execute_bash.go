@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
 
 // ExecuteBashParams defines input for execute_bash
 type ExecuteBashParams struct {
 	Command         string `json:"command"`
-	TaskTimeout     int    `json:"task_timeout,omitempty"`     // Timeout in seconds; if >0 promote to background on expiry
+	TaskTimeout     int    `json:"task_timeout,omitempty"`      // Timeout in seconds; 0 or omitted uses default (60s)
+	TimeoutAction   string `json:"timeout_action,omitempty"`    // "background" (default) | "kill"
 	RunInBackground bool   `json:"run_in_background,omitempty"` // Always run as background process
 	Description     string `json:"description,omitempty"`       // Audit description
 }
@@ -36,7 +38,7 @@ type BashBackgroundResult struct {
 
 var ExecuteBashSchema = api.ToolDefinition{
 	Name:        "execute_bash",
-	Description: "- Executes a system command in a controlled environment\n- Use task_timeout (seconds) to limit blocking time; the process is promoted to background on expiry\n- Set run_in_background:true to start a process immediately in the background\n- Automatically truncates large outputs to protect context window\n- Use this tool when you need to run shell commands, build scripts, run tests, or perform other system-level operations",
+	Description: "- Executes a system command in a controlled environment\n- Three execution modes:\n  1. Synchronous with timeout (default): command runs up to task_timeout seconds (default 60s); if still running, the action taken depends on 'timeout_action'\n  2. Synchronous no timeout: use run_in_background:true to start immediately in background\n  3. Background (run_in_background:true): starts immediately in background, returns process_id right away\n- Use process_output to poll or wait for background process completion\n- Automatically truncates large outputs to protect context window\n- Use this tool when you need to run shell commands, build scripts, run tests, or perform other system-level operations",
 	InputSchema: map[string]interface{}{
 		"$schema": "https://json-schema.org/draft/2020-12/schema",
 		"type":    "object",
@@ -47,11 +49,16 @@ var ExecuteBashSchema = api.ToolDefinition{
 			},
 			"task_timeout": map[string]interface{}{
 				"type":        "integer",
-				"description": "Optional: Timeout in seconds (default 10s). If the command exceeds this, it is promoted to a background process and a process_id is returned. Set to 0 to run synchronously with no timeout.",
+				"description": "Optional: Timeout in seconds (default 60s). When the command exceeds this timeout, the action taken depends on 'timeout_action'. Set to 0 to use the default timeout.",
+			},
+			"timeout_action": map[string]interface{}{
+				"type":        "string",
+				"enum":        []string{"background", "kill"},
+				"description": "Optional: Action to take when task_timeout expires. 'background' (default) promotes the process to background and returns a process_id. 'kill' terminates the process and returns partial output.",
 			},
 			"run_in_background": map[string]interface{}{
 				"type":        "boolean",
-				"description": "Optional: Start the process immediately in the background. Defaults to false.",
+				"description": "Optional: Start the process immediately in the background. Equivalent to task_timeout=0 with timeout_action='background'. Defaults to false.",
 			},
 			"description": map[string]interface{}{
 				"type":        "string",
@@ -64,8 +71,9 @@ var ExecuteBashSchema = api.ToolDefinition{
 }
 
 const (
-	maxOutputBytes = 50 * 1024 // 50KB limit as per spec
-	maxOutputLines = 1000      // Line limit for safety
+	defaultTaskTimeout = 60 // Default timeout in seconds
+	maxOutputBytes     = 50 * 1024 // 50KB limit as per spec
+	maxOutputLines     = 1000      // Line limit for safety
 )
 
 // ExecuteBashHandler implements execute_bash with background promotion support
@@ -76,6 +84,7 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 	}
 
 	cmd := exec.Command("bash", "-c", p.Command)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // Create new process group for clean kill
 	stdoutBuf := &api.ProcBuffer{}
 	stderrBuf := &api.ProcBuffer{}
 	cmd.Stdout = stdoutBuf
@@ -100,17 +109,35 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 		}, nil
 	}
 
-	// TaskTimeout > 0: wait up to timeout, promote to background if exceeded
-	if p.TaskTimeout > 0 {
-		timer := time.NewTimer(time.Duration(p.TaskTimeout) * time.Second)
-		defer timer.Stop()
+	// Determine timeout (default 60s)
+	timeout := p.TaskTimeout
+	if timeout <= 0 {
+		timeout = defaultTaskTimeout
+	}
 
-		select {
-		case <-bp.WaitChan():
-			// Completed before timeout
+	// Determine timeout action (default "background")
+	action := p.TimeoutAction
+	if action == "" {
+		action = "background"
+	}
+
+	// Timed wait
+	timer := time.NewTimer(time.Duration(timeout) * time.Second)
+	defer timer.Stop()
+
+	select {
+	case <-bp.WaitChan():
+		// Completed before timeout
+		return buildSyncResult(bp), nil
+	case <-timer.C:
+		// Timeout
+		switch action {
+		case "kill":
+			// Kill entire process group (negative PID) to ensure child processes are also terminated
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			<-bp.WaitChan() // Wait for process to be reaped
 			return buildSyncResult(bp), nil
-		case <-timer.C:
-			// Timeout: promote to background
+		default: // "background"
 			api.GlobalProcessRegistry.Register(bp)
 			return BashBackgroundResult{
 				ProcessID: bp.ID,
@@ -120,10 +147,6 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 			}, nil
 		}
 	}
-
-	// Synchronous: wait indefinitely
-	<-bp.WaitChan()
-	return buildSyncResult(bp), nil
 }
 
 func buildSyncResult(bp *api.BackgroundProcess) ExecuteBashResult {

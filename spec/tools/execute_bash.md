@@ -25,12 +25,24 @@ Use `execute_bash` for operations that cannot be expressed through the other too
 
 ### Parameters
 
-| Field | Type | Required | Description |
+| Field | Type | Default | Description |
 |---|---|---|---|
-| `command` | `string` | **Yes** | The bash command to execute. Runs via `bash -c <command>`. |
-| `run_in_background` | `boolean` | No | If `true`, start the process in the background immediately and return `process_id` without waiting. Default: `false`. |
-| `task_timeout` | `integer` | No | Seconds to wait before promoting to a background process. Default: `10`. Set to `0` to wait synchronously until the command exits. Ignored when `run_in_background: true`. |
-| `description` | `string` | No | Optional human-readable description of the command's purpose (for logging). |
+| `command` | `string` | — | **Required.** The bash command to execute. Runs via `bash -c <command>`. |
+| `task_timeout` | `integer` | `60` | Timeout in seconds. `0` means use the default (60s). Ignored when `run_in_background: true`. |
+| `timeout_action` | `string` | `"background"` | Action when timeout expires: `"background"` promotes to background; `"kill"` terminates the process group and returns partial output. |
+| `run_in_background` | `boolean` | `false` | Start immediately in background. Equivalent to `task_timeout: 0, timeout_action: "background"`. |
+| `description` | `string` | — | Optional human-readable description of the command's purpose (for logging). |
+
+#### Parameter combinations
+
+| Scenario | Parameters | Behavior |
+|---|---|---|
+| Default (no params) | _(none)_ | Waits up to 60s. Returns result if done; otherwise promotes to background and returns `process_id`. |
+| Custom timeout, background on expiry | `task_timeout: 120` | Waits up to 120s. Returns result if done; otherwise promotes to background. |
+| Timeout with kill | `task_timeout: 60, timeout_action: "kill"` | Waits up to 60s. Returns result if done; otherwise kills the process group and returns partial output. |
+| Immediate background | `run_in_background: true` | Registers process, returns `process_id` immediately. |
+
+Use [`process_output`](./process_output.md) to retrieve output and check whether a background process has finished.
 
 ## Response
 
@@ -143,3 +155,11 @@ An Error Response is returned (instead of a result) only for hard failures:
 ```
 
 Returns `process_id` immediately without waiting. Use `process_output` to confirm it started successfully.
+
+### Run a command with kill-on-timeout
+
+```json
+{"id":"5","method":"tool","tool":"execute_bash","input":{"command":"make build","task_timeout":120,"timeout_action":"kill","description":"Build project, kill if stuck"}}
+```
+
+Waits up to 120 seconds. If the build is still running, terminates the entire process group and returns partial output.

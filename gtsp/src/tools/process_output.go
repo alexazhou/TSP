@@ -19,7 +19,7 @@ type ProcessOutputResult struct {
 
 var ProcessOutputSchema = api.ToolDefinition{
 	Name:        "process_output",
-	Description: "- Retrieves output from a running or completed background process\n- Use block:true (default) to wait for process completion up to the timeout\n- Use block:false for a non-blocking snapshot of current output\n- Returns stdout, stderr, running status, and exit code when complete",
+	Description: "- Retrieves output from a running or completed background process\n- Use block:true (default) to wait for process completion up to the timeout\n- Use block:false for a non-blocking snapshot of current output\n- Returns stdout, stderr, running status, and exit code when complete\n- Process IDs are only valid while the server session is active; they are lost on server restart\n- process_id is only returned when a process is promoted to background (via task_timeout expiry or run_in_background:true), not for processes that complete synchronously",
 	InputSchema: map[string]interface{}{
 		"$schema": "https://json-schema.org/draft/2020-12/schema",
 		"type":    "object",
@@ -34,7 +34,7 @@ var ProcessOutputSchema = api.ToolDefinition{
 			},
 			"timeout": map[string]interface{}{
 				"type":        "integer",
-				"description": "Max wait time in ms when block:true. Defaults to 30000, max 600000.",
+				"description": "Max wait time in ms when block:true. Defaults to 30000, max 60000. Note: actual effective wait time is also limited by the client's transport request timeout (typically 30-65s); if you need to wait longer, use block:false and poll repeatedly.",
 			},
 		},
 		"required":             []string{"process_id"},
@@ -60,8 +60,8 @@ func ProcessOutputHandler(session api.Session, params json.RawMessage) (interfac
 	timeoutMs := 30000
 	if p.Timeout != nil {
 		timeoutMs = *p.Timeout
-		if timeoutMs > 600000 {
-			timeoutMs = 600000
+		if timeoutMs > 60000 {
+			timeoutMs = 60000
 		}
 	}
 

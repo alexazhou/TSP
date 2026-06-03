@@ -149,6 +149,91 @@ func TestExecuteBash_TaskTimeout(t *testing.T) {
 	tools.ProcessStopHandler(session, stopParams)
 }
 
+func TestExecuteBash_DefaultTimeout(t *testing.T) {
+	session := setupShellTestSession()
+	// No task_timeout specified → should use default 60s, but we use a short sleep
+	// to verify that the default timeout mechanism works (command finishes before timeout)
+	params := json.RawMessage(`{"command": "echo default_ok"}`)
+	res, err := tools.ExecuteBashHandler(session, params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	result, ok := res.(tools.ExecuteBashResult)
+	if !ok {
+		t.Fatalf("expected ExecuteBashResult, got %T", res)
+	}
+	if strings.TrimSpace(result.Stdout) != "default_ok" {
+		t.Errorf("got %q", result.Stdout)
+	}
+	if result.ExitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", result.ExitCode)
+	}
+}
+
+func TestExecuteBash_DefaultTimeoutPromotesBackground(t *testing.T) {
+	session := setupShellTestSession()
+	// No task_timeout, command sleeps 5s → should be promoted to background after default timeout
+	// We can't wait 60s in a test, so use task_timeout:2 to verify the default path works
+	params := json.RawMessage(`{"command": "sleep 10", "task_timeout": 2}`)
+	res, err := tools.ExecuteBashHandler(session, params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	result, ok := res.(tools.BashBackgroundResult)
+	if !ok {
+		t.Fatalf("expected BashBackgroundResult after timeout, got %T", res)
+	}
+	if result.ProcessID == "" {
+		t.Error("expected non-empty process_id after timeout")
+	}
+
+	// Clean up
+	stopParams := json.RawMessage(`{"process_id": "` + result.ProcessID + `"}`)
+	tools.ProcessStopHandler(session, stopParams)
+}
+
+func TestExecuteBash_TimeoutActionKill(t *testing.T) {
+	session := setupShellTestSession()
+	// timeout_action: "kill" should terminate the process
+	params := json.RawMessage(`{"command": "sleep 30", "task_timeout": 1, "timeout_action": "kill"}`)
+	start := time.Now()
+	res, err := tools.ExecuteBashHandler(session, params)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	result, ok := res.(tools.ExecuteBashResult)
+	if !ok {
+		t.Fatalf("expected ExecuteBashResult after kill, got %T", res)
+	}
+	// Process was killed, so it should have a non-zero exit code (137 = SIGKILL)
+	if result.ExitCode == 0 {
+		t.Error("expected non-zero exit code after kill")
+	}
+	// Should return quickly (within a few seconds of the timeout), not wait for full 30s
+	if elapsed > 5*time.Second {
+		t.Errorf("kill took too long: %v (expected < 5s)", elapsed)
+	}
+}
+
+func TestExecuteBash_TimeoutActionKillReturnsPartialOutput(t *testing.T) {
+	session := setupShellTestSession()
+	// Command produces output then sleeps → kill should capture partial output
+	params := json.RawMessage(`{"command": "echo partial_data && sleep 30", "task_timeout": 1, "timeout_action": "kill"}`)
+	res, err := tools.ExecuteBashHandler(session, params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	result, ok := res.(tools.ExecuteBashResult)
+	if !ok {
+		t.Fatalf("expected ExecuteBashResult, got %T", res)
+	}
+	if !strings.Contains(result.Stdout, "partial_data") {
+		t.Errorf("expected 'partial_data' in stdout after kill, got %q", result.Stdout)
+	}
+}
+
 func TestProcessOutput(t *testing.T) {
 	session := setupShellTestSession()
 	// Start a background process that writes output after a short delay

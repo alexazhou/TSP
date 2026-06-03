@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // PathRuleList is a flag.Value that converts comma-separated paths into allow PathRules
@@ -172,7 +174,17 @@ func main() {
 		os.Exit(0)
 	}
 
-	// 4. Mode Selection
+	// 4. Signal handling: clean up child processes on exit
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigChan
+		log.Printf("Received signal %v, cleaning up processes...", sig)
+		api.GlobalProcessRegistry.KillAll()
+		os.Exit(0)
+	}()
+
+	// 5. Mode Selection
 	switch *mode {
 	case "websocket":
 		if *port <= 0 {

@@ -6,6 +6,10 @@ Retrieve output from a background process and check whether it has finished.
 
 Use `process_output` after receiving a `process_id` from a long-running `execute_bash` call. Call it repeatedly to poll for completion, or set `block: true` to wait until the process exits.
 
+**Important notes:**
+- `process_id` is only returned when a process is promoted to background (via `task_timeout` expiry or `run_in_background: true`). Processes that complete synchronously do **not** produce a `process_id`.
+- Process IDs are only valid while the TSP server session is active. They are lost on server restart.
+
 ## Request
 
 ```json
@@ -27,7 +31,7 @@ Use `process_output` after receiving a `process_id` from a long-running `execute
 |---|---|---|---|
 | `process_id` | `string` | **Yes** | The process handle returned by `execute_bash`. |
 | `block` | `boolean` | No | If `true`, wait until the process exits before returning. If `false`, return the current output immediately. Default: `true`. |
-| `timeout` | `integer` | No | Maximum milliseconds to wait when `block: true`. If the process has not exited by this deadline, returns with `running: true`. Default: `30000`. Maximum: `600000`. |
+| `timeout` | `integer` | No | Maximum milliseconds to wait when `block: true`. If the process has not exited by this deadline, returns with `running: true`. Default: `30000`. Maximum: `60000`. **Note:** The actual effective wait time is also limited by the client's transport request timeout (typically 30–65s). If you need to wait longer, use `block: false` and poll repeatedly. |
 
 ## Response
 

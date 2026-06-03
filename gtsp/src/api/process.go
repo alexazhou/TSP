@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -63,8 +62,7 @@ func (bp *BackgroundProcess) WaitChan() <-chan struct{} {
 // Kill sends SIGKILL to the process group (including child processes)
 func (bp *BackgroundProcess) Kill() {
 	if bp.cmd != nil && bp.cmd.Process != nil {
-		// Kill entire process group (negative PID) to ensure child processes are also terminated
-		syscall.Kill(-bp.cmd.Process.Pid, syscall.SIGKILL)
+		killProcessGroup(bp.cmd.Process.Pid)
 	}
 }
 

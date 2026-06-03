@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -84,7 +83,7 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 	}
 
 	cmd := exec.Command("bash", "-c", p.Command)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // Create new process group for clean kill
+	setProcessGroup(cmd) // Create new process group for clean kill (Unix only)
 	stdoutBuf := &api.ProcBuffer{}
 	stderrBuf := &api.ProcBuffer{}
 	cmd.Stdout = stdoutBuf
@@ -133,8 +132,8 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 		// Timeout
 		switch action {
 		case "kill":
-			// Kill entire process group (negative PID) to ensure child processes are also terminated
-			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			// Kill entire process group to ensure child processes are also terminated
+			killProcessGroup(cmd.Process.Pid)
 			<-bp.WaitChan() // Wait for process to be reaped
 			return buildSyncResult(bp), nil
 		default: // "background"

@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"fmt"
+	"gTSP/src/pal"
 	"os/exec"
 	"sync"
 	"time"
@@ -62,7 +63,7 @@ func (bp *BackgroundProcess) WaitChan() <-chan struct{} {
 // Kill sends SIGKILL to the process group (including child processes)
 func (bp *BackgroundProcess) Kill() {
 	if bp.cmd != nil && bp.cmd.Process != nil {
-		killProcessGroup(bp.cmd.Process.Pid)
+		pal.KillProcessGroup(bp.cmd.Process.Pid)
 	}
 }
 

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"gTSP/src/api"
+	"gTSP/src/pal"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -83,7 +84,7 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 	}
 
 	cmd := exec.Command("bash", "-c", p.Command)
-	setProcessGroup(cmd) // Create new process group for clean kill (Unix only)
+	pal.SetProcessGroup(cmd) // Create new process group for clean kill (platform-specific)
 	stdoutBuf := &api.ProcBuffer{}
 	stderrBuf := &api.ProcBuffer{}
 	cmd.Stdout = stdoutBuf
@@ -133,7 +134,7 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 		switch action {
 		case "kill":
 			// Kill entire process group to ensure child processes are also terminated
-			killProcessGroup(cmd.Process.Pid)
+			pal.KillProcessGroup(cmd.Process.Pid)
 			<-bp.WaitChan() // Wait for process to be reaped
 			return buildSyncResult(bp), nil
 		default: // "background"

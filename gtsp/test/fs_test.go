@@ -180,6 +180,7 @@ func TestReadFileHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	tmpFile.Close()
 	content := "Line 1\nLine 2\nLine 3\nLine 4\nLine 5"
 	os.WriteFile(tmpFile.Name(), []byte(content), 0644)
 	defer os.Remove(tmpFile.Name())
@@ -259,6 +260,7 @@ func TestWriteFileHandler(t *testing.T) {
 
 func TestEditHandler(t *testing.T) {
 	tmpFile, _ := os.CreateTemp("", "edit-test-*.txt")
+	tmpFile.Close()
 	initial := "apple\nbanana\norange\napple"
 	os.WriteFile(tmpFile.Name(), []byte(initial), 0644)
 	defer os.Remove(tmpFile.Name())

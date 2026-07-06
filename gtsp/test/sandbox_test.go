@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -37,9 +38,13 @@ func TestSandbox_PathValidation(t *testing.T) {
 	}
 
 	// 2. Invalid path outside workspace (absolute)
-	_, err = api.ValidatePath("/etc/passwd")
+	outOfWorkspacePath := "/etc/passwd"
+	if runtime.GOOS == "windows" {
+		outOfWorkspacePath = `C:\Windows\System32\cmd.exe`
+	}
+	_, err = api.ValidatePath(outOfWorkspacePath)
 	if err == nil {
-		t.Error("Expected error for /etc/passwd, but got nil")
+		t.Errorf("Expected error for %s, but got nil", outOfWorkspacePath)
 	}
 
 	// 3. Path traversal attempt

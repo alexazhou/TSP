@@ -38,7 +38,7 @@ func TestListDirHandler(t *testing.T) {
 	session := setupTestSession(tmpDir)
 
 	t.Run("basic list", func(t *testing.T) {
-		params := json.RawMessage(`{"dir_path": "` + tmpDir + `"}`)
+		params := json.RawMessage(`{"dir_path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `"}`)
 		res, err := tools.ListDirHandler(session, params)
 		if err != nil {
 			t.Fatalf("ListDirHandler failed: %v", err)
@@ -51,7 +51,7 @@ func TestListDirHandler(t *testing.T) {
 	})
 
 	t.Run("recursive list", func(t *testing.T) {
-		params := json.RawMessage(`{"dir_path": "` + tmpDir + `", "recursive": true, "depth": 1}`)
+		params := json.RawMessage(`{"dir_path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "recursive": true, "depth": 1}`)
 		res, err := tools.ListDirHandler(session, params)
 		if err != nil {
 			t.Fatalf("ListDirHandler failed: %v", err)
@@ -64,7 +64,7 @@ func TestListDirHandler(t *testing.T) {
 	})
 
 	t.Run("ignore_patterns filters files", func(t *testing.T) {
-		params := json.RawMessage(`{"dir_path": "` + tmpDir + `", "ignore_patterns": ["*.txt"]}`)
+		params := json.RawMessage(`{"dir_path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "ignore_patterns": ["*.txt"]}`)
 		res, err := tools.ListDirHandler(session, params)
 		if err != nil {
 			t.Fatalf("ListDirHandler failed: %v", err)
@@ -80,7 +80,7 @@ func TestListDirHandler(t *testing.T) {
 	})
 
 	t.Run("ignore_patterns filters subdirs recursively", func(t *testing.T) {
-		params := json.RawMessage(`{"dir_path": "` + tmpDir + `", "recursive": true, "depth": 1, "ignore_patterns": ["subdir"]}`)
+		params := json.RawMessage(`{"dir_path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "recursive": true, "depth": 1, "ignore_patterns": ["subdir"]}`)
 		res, err := tools.ListDirHandler(session, params)
 		if err != nil {
 			t.Fatalf("ListDirHandler failed: %v", err)
@@ -106,7 +106,7 @@ func TestListDirHandler(t *testing.T) {
 			name := fmt.Sprintf("file%02d.txt", i)
 			os.WriteFile(filepath.Join(limitDir, name), []byte("x"), 0644)
 		}
-		params := json.RawMessage(`{"dir_path": "` + limitDir + `"}`)
+		params := json.RawMessage(`{"dir_path": "` + filepath.ToSlash(limitDir) + `"}`)
 		res, err := tools.ListDirHandler(session, params)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -121,7 +121,7 @@ func TestListDirHandler(t *testing.T) {
 	})
 
 	t.Run("custom limit", func(t *testing.T) {
-		params := json.RawMessage(`{"dir_path": "` + tmpDir + `", "recursive": true, "depth": 1, "limit": 2}`)
+		params := json.RawMessage(`{"dir_path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "recursive": true, "depth": 1, "limit": 2}`)
 		res, err := tools.ListDirHandler(session, params)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -144,7 +144,7 @@ func TestListDirHandler(t *testing.T) {
 		os.MkdirAll(filepath.Join(ignoreDir, "__pycache__"), 0755)
 		os.WriteFile(filepath.Join(ignoreDir, "__pycache__", "mod.pyc"), []byte("x"), 0644)
 
-		params := json.RawMessage(`{"dir_path": "` + ignoreDir + `", "recursive": true, "depth": 2}`)
+		params := json.RawMessage(`{"dir_path": "` + filepath.ToSlash(ignoreDir) + `", "recursive": true, "depth": 2}`)
 		res, err := tools.ListDirHandler(session, params)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -187,7 +187,7 @@ func TestReadFileHandler(t *testing.T) {
 	session := setupTestSession(os.TempDir())
 
 	t.Run("full read", func(t *testing.T) {
-		params := json.RawMessage(`{"file_path": "` + tmpFile.Name() + `"}`)
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(tmpFile.Name()) + `"}`)
 		res, err := tools.ReadFileHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -199,7 +199,7 @@ func TestReadFileHandler(t *testing.T) {
 	})
 
 	t.Run("line slicing", func(t *testing.T) {
-		params := json.RawMessage(`{"file_path": "` + tmpFile.Name() + `", "start_line": 2, "end_line": 4}`)
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(tmpFile.Name()) + `", "start_line": 2, "end_line": 4}`)
 		res, err := tools.ReadFileHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -216,7 +216,7 @@ func TestReadFileHandler(t *testing.T) {
 		os.WriteFile(binFile, []byte{0, 1, 2, 3, 0xFF, 0x00}, 0644)
 		defer os.Remove(binFile)
 
-		params := json.RawMessage(`{"file_path": "` + binFile + `"}`)
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(binFile) + `"}`)
 		_, err := tools.ReadFileHandler(session, params)
 		if err == nil || !strings.Contains(err.Error(), "binary") {
 			t.Errorf("expected binary protection error, got %v", err)
@@ -235,7 +235,7 @@ func TestWriteFileHandler(t *testing.T) {
 
 	t.Run("atomic write and mkdir", func(t *testing.T) {
 		filePath := filepath.Join(tmpDir, "new_sub_dir", "out.txt")
-		params := json.RawMessage(`{"file_path": "` + filePath + `", "content": "hello atomic"}`)
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(filePath) + `", "content": "hello atomic"}`)
 		_, err := tools.WriteFileHandler(session, params)
 		if err != nil {
 			t.Fatalf("WriteFileHandler failed: %v", err)
@@ -249,7 +249,7 @@ func TestWriteFileHandler(t *testing.T) {
 	t.Run("size_limit", func(t *testing.T) {
 		largeContent := strings.Repeat("a", 101*1024) // > 100KB
 		filePath := filepath.Join(tmpDir, "too_large.txt")
-		params := json.RawMessage(`{"file_path": "` + filePath + `", "content": "` + largeContent + `"}`)
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(filePath) + `", "content": "` + filepath.ToSlash(largeContent) + `"}`)
 		_, err := tools.WriteFileHandler(session, params)
 		if err == nil || !strings.Contains(err.Error(), "too large") {
 			t.Errorf("expected size limit error, got %v", err)
@@ -268,7 +268,7 @@ func TestEditHandler(t *testing.T) {
 	session.SetPathRules([]api.PathRule{{Action: "allow", Path: "/"}}, []api.PathRule{{Action: "allow", Path: "/"}})
 
 	t.Run("single replace", func(t *testing.T) {
-		params := json.RawMessage(`{"file_path": "` + tmpFile.Name() + `", "old_string": "banana", "new_string": "grape"}`)
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(tmpFile.Name()) + `", "old_string": "banana", "new_string": "grape"}`)
 		_, err := tools.EditHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -280,7 +280,7 @@ func TestEditHandler(t *testing.T) {
 	})
 
 	t.Run("multiple match error", func(t *testing.T) {
-		params := json.RawMessage(`{"file_path": "` + tmpFile.Name() + `", "old_string": "apple", "new_string": "pear"}`)
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(tmpFile.Name()) + `", "old_string": "apple", "new_string": "pear"}`)
 		_, err := tools.EditHandler(session, params)
 		if err == nil || !strings.Contains(err.Error(), "found 2 occurrences") {
 			t.Errorf("expected multiple match error, got %v", err)
@@ -288,7 +288,7 @@ func TestEditHandler(t *testing.T) {
 	})
 
 	t.Run("allow multiple", func(t *testing.T) {
-		params := json.RawMessage(`{"file_path": "` + tmpFile.Name() + `", "old_string": "apple", "new_string": "pear", "allow_multiple": true}`)
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(tmpFile.Name()) + `", "old_string": "apple", "new_string": "pear", "allow_multiple": true}`)
 		_, err := tools.EditHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -310,7 +310,7 @@ func TestSearchHandlers(t *testing.T) {
 	session := setupTestSession("/") // Allow root for simple testing with absolute paths
 
 	t.Run("grep_search fixed", func(t *testing.T) {
-		params := json.RawMessage(`{"pattern": "fmt.Println", "path": "` + tmpDir + `", "fixed_strings": true}`)
+		params := json.RawMessage(`{"pattern": "fmt.Println", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "fixed_strings": true}`)
 		res, err := tools.GrepSearchHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -322,7 +322,7 @@ func TestSearchHandlers(t *testing.T) {
 	})
 
 	t.Run("glob", func(t *testing.T) {
-		params := json.RawMessage(`{"pattern": "*.go", "path": "` + tmpDir + `"}`)
+		params := json.RawMessage(`{"pattern": "*.go", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `"}`)
 		res, err := tools.GlobHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -352,7 +352,7 @@ func TestSearchHandlers(t *testing.T) {
 
 	t.Run("grep_search include_pattern", func(t *testing.T) {
 		// Only search *.go files — should find pattern in both files
-		params := json.RawMessage(`{"pattern": "package main", "path": "` + tmpDir + `", "include_pattern": "*.go"}`)
+		params := json.RawMessage(`{"pattern": "package main", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "include_pattern": "*.go"}`)
 		res, err := tools.GrepSearchHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -365,7 +365,7 @@ func TestSearchHandlers(t *testing.T) {
 
 	t.Run("grep_search exclude_pattern", func(t *testing.T) {
 		// Exclude util.go — should only match main.go
-		params := json.RawMessage(`{"pattern": "package main", "path": "` + tmpDir + `", "exclude_pattern": "util.go"}`)
+		params := json.RawMessage(`{"pattern": "package main", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "exclude_pattern": "util.go"}`)
 		res, err := tools.GrepSearchHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -381,7 +381,7 @@ func TestSearchHandlers(t *testing.T) {
 
 	t.Run("grep_search exclude_pattern glob wildcard", func(t *testing.T) {
 		// Exclude all .go files — should find no matches
-		params := json.RawMessage(`{"pattern": "package main", "path": "` + tmpDir + `", "exclude_pattern": "*.go"}`)
+		params := json.RawMessage(`{"pattern": "package main", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "exclude_pattern": "*.go"}`)
 		res, err := tools.GrepSearchHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -394,7 +394,7 @@ func TestSearchHandlers(t *testing.T) {
 
 	t.Run("grep_search include and exclude combined", func(t *testing.T) {
 		// Include *.go but exclude util.go — only main.go remains
-		params := json.RawMessage(`{"pattern": "func", "path": "` + tmpDir + `", "include_pattern": "*.go", "exclude_pattern": "util.go"}`)
+		params := json.RawMessage(`{"pattern": "func", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "include_pattern": "*.go", "exclude_pattern": "util.go"}`)
 		res, err := tools.GrepSearchHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -408,7 +408,7 @@ func TestSearchHandlers(t *testing.T) {
 	})
 
 	t.Run("grep_search regex", func(t *testing.T) {
-		params := json.RawMessage(`{"pattern": "func \\w+\\(", "path": "` + tmpDir + `"}`)
+		params := json.RawMessage(`{"pattern": "func \\w+\\(", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `"}`)
 		res, err := tools.GrepSearchHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -420,7 +420,7 @@ func TestSearchHandlers(t *testing.T) {
 	})
 
 	t.Run("grep_search case insensitive default", func(t *testing.T) {
-		params := json.RawMessage(`{"pattern": "PACKAGE MAIN", "path": "` + tmpDir + `", "fixed_strings": true}`)
+		params := json.RawMessage(`{"pattern": "PACKAGE MAIN", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "fixed_strings": true}`)
 		res, err := tools.GrepSearchHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -432,7 +432,7 @@ func TestSearchHandlers(t *testing.T) {
 	})
 
 	t.Run("grep_search case sensitive", func(t *testing.T) {
-		params := json.RawMessage(`{"pattern": "PACKAGE MAIN", "path": "` + tmpDir + `", "fixed_strings": true, "case_sensitive": true}`)
+		params := json.RawMessage(`{"pattern": "PACKAGE MAIN", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "fixed_strings": true, "case_sensitive": true}`)
 		res, err := tools.GrepSearchHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -444,7 +444,7 @@ func TestSearchHandlers(t *testing.T) {
 	})
 
 	t.Run("grep_search total_max_matches truncation", func(t *testing.T) {
-		params := json.RawMessage(`{"pattern": "package main", "path": "` + tmpDir + `", "total_max_matches": 1}`)
+		params := json.RawMessage(`{"pattern": "package main", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "total_max_matches": 1}`)
 		res, err := tools.GrepSearchHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -468,7 +468,7 @@ func TestSearchHandlers(t *testing.T) {
 
 	t.Run("grep_search path not found", func(t *testing.T) {
 		nonExistent := filepath.Join(tmpDir, "does_not_exist")
-		params := json.RawMessage(`{"pattern": "func", "path": "` + nonExistent + `"}`)
+		params := json.RawMessage(`{"pattern": "func", "path": "` + filepath.ToSlash(nonExistent) + `"}`)
 		_, err := tools.GrepSearchHandler(session, params)
 		if err == nil {
 			t.Fatal("expected error for non-existent path, got nil")
@@ -480,7 +480,7 @@ func TestSearchHandlers(t *testing.T) {
 
 	t.Run("glob case insensitive default", func(t *testing.T) {
 		// Default is case-insensitive: "*.GO" should still match main.go, util.go
-		params := json.RawMessage(`{"pattern": "*.GO", "path": "` + tmpDir + `"}`)
+		params := json.RawMessage(`{"pattern": "*.GO", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `"}`)
 		res, err := tools.GlobHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -493,7 +493,7 @@ func TestSearchHandlers(t *testing.T) {
 
 	t.Run("glob case sensitive", func(t *testing.T) {
 		// case_sensitive: true — "*.GO" should not match lowercase .go files
-		params := json.RawMessage(`{"pattern": "*.GO", "path": "` + tmpDir + `", "case_sensitive": true}`)
+		params := json.RawMessage(`{"pattern": "*.GO", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `", "case_sensitive": true}`)
 		res, err := tools.GlobHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -504,7 +504,7 @@ func TestSearchHandlers(t *testing.T) {
 	})
 
 	t.Run("glob empty result", func(t *testing.T) {
-		params := json.RawMessage(`{"pattern": "nonexistent*.xyz", "path": "` + tmpDir + `"}`)
+		params := json.RawMessage(`{"pattern": "nonexistent*.xyz", "path": "` + strings.ReplaceAll(tmpDir, "\\", "\\\\") + `"}`)
 		res, err := tools.GlobHandler(session, params)
 		if err != nil {
 			t.Fatal(err)
@@ -520,7 +520,7 @@ func TestSearchHandlers(t *testing.T) {
 
 	t.Run("glob path not found", func(t *testing.T) {
 		nonExistent := filepath.Join(tmpDir, "does_not_exist")
-		params := json.RawMessage(`{"pattern": "*.go", "path": "` + nonExistent + `"}`)
+		params := json.RawMessage(`{"pattern": "*.go", "path": "` + filepath.ToSlash(nonExistent) + `"}`)
 		_, err := tools.GlobHandler(session, params)
 		if err == nil {
 			t.Fatal("expected error for non-existent path, got nil")

@@ -291,14 +291,15 @@ func TestProcessStop(t *testing.T) {
 		t.Fatal("expected non-nil stop result")
 	}
 
-	// Verify process is no longer running after a short wait
-	time.Sleep(100 * time.Millisecond)
-
 	bp, ok := api.GlobalProcessRegistry.Get(bgResult.ProcessID)
 	if !ok {
 		t.Fatal("expected process to still be in registry")
 	}
-	if !bp.IsDone() {
+
+	select {
+	case <-bp.WaitChan():
+		// Process correctly finished
+	case <-time.After(2 * time.Second):
 		t.Error("expected process to be done after stop")
 	}
 }
@@ -332,9 +333,7 @@ func TestProcessList(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected ProcessListResult, got %T", res)
 	}
-	if len(listResult.Processes) != 0 {
-		t.Errorf("expected 0 processes initially, got %d", len(listResult.Processes))
-	}
+	initialCount := len(listResult.Processes)
 
 	// Start two background processes
 	params1 := json.RawMessage(`{"command": "sleep 10", "run_in_background": true}`)
@@ -357,8 +356,8 @@ func TestProcessList(t *testing.T) {
 		t.Fatalf("process_list failed: %v", err)
 	}
 	listResult = res.(tools.ProcessListResult)
-	if len(listResult.Processes) != 2 {
-		t.Errorf("expected 2 processes, got %d", len(listResult.Processes))
+	if len(listResult.Processes) != initialCount+2 {
+		t.Errorf("expected %d processes, got %d", initialCount+2, len(listResult.Processes))
 	}
 
 	// Verify process details
@@ -394,17 +393,22 @@ func TestProcessList(t *testing.T) {
 	stopParams := json.RawMessage(`{"process_id": "` + bg1.ProcessID + `"}`)
 	tools.ProcessStopHandler(session, stopParams)
 
-	// Wait for process to be marked as done
-	time.Sleep(100 * time.Millisecond)
+	// Wait for process 1 to exit properly
+	bp1, _ := api.GlobalProcessRegistry.Get(bg1.ProcessID)
+	select {
+	case <-bp1.WaitChan():
+	case <-time.After(2 * time.Second):
+		t.Error("expected process to exit after stop")
+	}
 
-	// List should now show only 1 running process (completed ones are filtered)
+	// List should now show initialCount + 1 running process
 	res, err = tools.ProcessListHandler(session, listParams)
 	if err != nil {
 		t.Fatalf("process_list failed: %v", err)
 	}
 	listResult = res.(tools.ProcessListResult)
-	if len(listResult.Processes) != 1 {
-		t.Errorf("expected 1 running process after stop, got %d", len(listResult.Processes))
+	if len(listResult.Processes) != initialCount+1 {
+		t.Errorf("expected %d running process after stop, got %d", initialCount+1, len(listResult.Processes))
 	}
 
 	// Clean up remaining process

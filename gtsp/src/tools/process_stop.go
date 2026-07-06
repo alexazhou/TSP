@@ -4,6 +4,7 @@ import (
 	"gTSP/src/api"
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 var ProcessStopSchema = api.ToolDefinition{
@@ -42,6 +43,13 @@ func ProcessStopHandler(session api.Session, params json.RawMessage) (interface{
 	// No-op if already exited
 	if !bp.IsDone() {
 		bp.Kill()
+		// Wait for process to fully terminate and pipes to close
+		select {
+		case <-bp.WaitChan():
+			// Successfully terminated
+		case <-time.After(2 * time.Second):
+			return nil, fmt.Errorf("process kill timeout: process did not terminate within 2 seconds")
+		}
 	}
 
 	return map[string]interface{}{}, nil

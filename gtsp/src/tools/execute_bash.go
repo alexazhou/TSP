@@ -13,7 +13,7 @@ import (
 // ExecuteBashParams defines input for execute_bash
 type ExecuteBashParams struct {
 	Command         string `json:"command"`
-	TaskTimeout     int    `json:"task_timeout,omitempty"`      // Timeout in seconds; 0 or omitted uses default (60s)
+	TaskTimeout     int    `json:"task_timeout,omitempty"`      // Timeout in seconds; 0 or omitted uses default (180s)
 	TimeoutAction   string `json:"timeout_action,omitempty"`    // "background" (default) | "kill"
 	RunInBackground bool   `json:"run_in_background,omitempty"` // Always run as background process
 	Description     string `json:"description,omitempty"`       // Audit description
@@ -38,7 +38,7 @@ type BashBackgroundResult struct {
 
 var ExecuteBashSchema = api.ToolDefinition{
 	Name:        "execute_bash",
-	Description: "- Executes a system command in a controlled environment\n- Three execution modes:\n  1. Synchronous with timeout (default): command runs up to task_timeout seconds (default 60s); if still running, the action taken depends on 'timeout_action'\n  2. Synchronous no timeout: use run_in_background:true to start immediately in background\n  3. Background (run_in_background:true): starts immediately in background, returns process_id right away\n- Use process_output to poll or wait for background process completion\n- Automatically truncates large outputs to protect context window\n- Use this tool when you need to run shell commands, build scripts, run tests, or perform other system-level operations",
+	Description: "- Executes a system command in a controlled environment\n- Three execution modes:\n  1. Synchronous with timeout (default): command runs up to task_timeout seconds (default 180s); if still running, the action taken depends on 'timeout_action'\n  2. Synchronous no timeout: use run_in_background:true to start immediately in background\n  3. Background (run_in_background:true): starts immediately in background, returns process_id right away\n- Use process_output to poll or wait for background process completion\n- Automatically truncates large outputs to protect context window\n- Use this tool when you need to run shell commands, build scripts, run tests, or perform other system-level operations",
 	InputSchema: map[string]interface{}{
 		"$schema": "https://json-schema.org/draft/2020-12/schema",
 		"type":    "object",
@@ -49,7 +49,7 @@ var ExecuteBashSchema = api.ToolDefinition{
 			},
 			"task_timeout": map[string]interface{}{
 				"type":        "integer",
-				"description": "Optional: Timeout in seconds (default 60s). When the command exceeds this timeout, the action taken depends on 'timeout_action'. Set to 0 to use the default timeout.",
+				"description": "Optional: Timeout in seconds (default 180s). When the command exceeds this timeout, the action taken depends on 'timeout_action'. Set to 0 to use the default timeout.",
 			},
 			"timeout_action": map[string]interface{}{
 				"type":        "string",
@@ -71,7 +71,7 @@ var ExecuteBashSchema = api.ToolDefinition{
 }
 
 const (
-	defaultTaskTimeout = 60 // Default timeout in seconds
+	defaultTaskTimeout = 180 // Default timeout in seconds
 	maxOutputBytes     = 50 * 1024 // 50KB limit as per spec
 	maxOutputLines     = 1000      // Line limit for safety
 )

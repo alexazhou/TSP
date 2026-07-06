@@ -31,7 +31,7 @@ class TSPClient:
     def __init__(self):
         raise TypeError("请使用工厂方法创建实例：TSPClient.from_stdio('gtsp')")
 
-    def _init(self, command: List[str], request_timeout_sec: int = 30):
+    def _init(self, command: List[str], request_timeout_sec: int = 200):
         """内部初始化方法，请使用 from_stdio 或 from_websocket。"""
         self.command = command
         self.request_timeout_sec = request_timeout_sec
@@ -45,7 +45,7 @@ class TSPClient:
         self._connected: bool = False
 
     @classmethod
-    def from_stdio(cls, command: Union[str, List[str]], request_timeout_sec: int = 30) -> "TSPClient":
+    def from_stdio(cls, command: Union[str, List[str]], request_timeout_sec: int = 200) -> "TSPClient":
         """创建 stdio 模式的 TSP 客户端。
 
         Args:
@@ -57,7 +57,7 @@ class TSPClient:
         return instance
 
     @classmethod
-    def from_websocket(cls, url: str, token: Optional[str] = None, request_timeout_sec: int = 30) -> "TSPClient":
+    def from_websocket(cls, url: str, token: Optional[str] = None, request_timeout_sec: int = 200) -> "TSPClient":
         """创建 websocket 模式的 TSP 客户端（暂未实现）。"""
         raise NotImplementedError("WebSocket mode not yet implemented")
 

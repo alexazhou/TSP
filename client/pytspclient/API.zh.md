@@ -10,7 +10,7 @@
 
 工厂方法。从命令启动 TSP 服务器。
 ```python
-TSPClient.from_stdio(command: str, request_timeout_sec: int = 30) -> TSPClient
+TSPClient.from_stdio(command: str, request_timeout_sec: int = 200) -> TSPClient
 ```
 
 ### 属性

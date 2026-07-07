@@ -26,6 +26,7 @@ type ExecuteBashResult struct {
 	Stderr    string `json:"stderr"`
 	ExitCode  int    `json:"exit_code"`
 	Truncated bool   `json:"truncated,omitempty"`
+	Message   string `json:"message,omitempty"` // Optional: human-readable status message
 }
 
 // BashBackgroundResult is returned when a process is running in the background
@@ -136,7 +137,10 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 			// Kill entire process group to ensure child processes are also terminated
 			pal.KillProcessGroup(cmd.Process.Pid)
 			<-bp.WaitChan() // Wait for process to be reaped
-			return buildSyncResult(bp), nil
+			result := buildSyncResult(bp)
+			result.Success = true // Expected behavior, not a failure
+			result.Message = fmt.Sprintf("Command timed out after %ds and was killed", timeout)
+			return result, nil
 		default: // "background"
 			api.GlobalProcessRegistry.Register(bp)
 			return BashBackgroundResult{

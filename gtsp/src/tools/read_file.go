@@ -30,7 +30,7 @@ type ReadFileResult struct {
 
 var ReadFileSchema = api.ToolDefinition{
 	Name:        "read_file",
-	Description: "- Reads and returns the content of a specified file\n- Supports line-based slicing for reading specific portions of large files\n- Automatically truncates large files to protect context window\n- Detects and rejects binary files for safety\n- Use this tool when you need to read the contents of a file to understand its logic or data",
+	Description: "- Reads and returns the content of a specified file\n- Supports line-based slicing for reading specific portions of large files\n- Automatically truncates large files to protect context window\n- Detects and rejects binary files for safety\n- Each content line is prefixed with its 1-based line number (e.g. \"   12│code\") for reference\n- When using 'edit', provide the exact text WITHOUT the line-number prefix\n- Use this tool when you need to read the contents of a file to understand its logic or data",
 	InputSchema: map[string]interface{}{
 		"$schema": "https://json-schema.org/draft/2020-12/schema",
 		"type":    "object",
@@ -61,6 +61,12 @@ const (
 	maxFileSizeForFullRead = 100 * 1024 // 100KB, as per spec
 	maxLinesToReturn       = 500       // Safety limit for a single call
 )
+
+// appendNumberedLine writes "N│<line>\n" to buf, prefixing the line with its
+// 1-based file line number so the model can reference specific lines.
+func appendNumberedLine(buf *bytes.Buffer, lineNum int, line []byte) {
+	fmt.Fprintf(buf, "%4d│%s\n", lineNum, line)
+}
 
 // ReadFileHandler implements read_file with line-based slicing and safety protections
 func ReadFileHandler(session api.Session, params json.RawMessage) (interface{}, error) {
@@ -130,15 +136,14 @@ func ReadFileHandler(session api.Session, params json.RawMessage) (interface{}, 
 	for scanner.Scan() {
 		currentLine++
 		totalLines++
-		
+
 		// Collect lines within range
 		if currentLine >= startLine && (endLine <= 0 || currentLine <= endLine) {
 			// If we hit a hard line count limit without an explicit endLine
 			if endLine <= 0 && (currentLine-startLine) >= maxLinesToReturn {
 				continue // Keep counting total lines but stop collecting
 			}
-			content.Write(scanner.Bytes())
-			content.WriteString("\n")
+			appendNumberedLine(&content, currentLine, scanner.Bytes())
 		}
 	}
 
@@ -174,7 +179,7 @@ func isBinary(data []byte) bool {
 	}
 	// Check UTF-8 validity
 	if !utf8.Valid(data) {
-		// Some invalid UTF-8 is fine for text files (e.g. mixed encodings), 
+		// Some invalid UTF-8 is fine for text files (e.g. mixed encodings),
 		// but if a large portion is invalid, it's likely binary.
 		invalidCount := 0
 		for len(data) > 0 {

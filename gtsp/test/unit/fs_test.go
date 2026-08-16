@@ -211,9 +211,22 @@ func TestReadFileHandler(t *testing.T) {
 			t.Fatal(err)
 		}
 		result := res.(tools.ReadFileResult)
-		expected := "Line 2\nLine 3\nLine 4\n"
+		expected := "   2│Line 2\n   3│Line 3\n   4│Line 4\n"
 		if result.Content != expected {
 			t.Errorf("expected %q, got %q", expected, result.Content)
+		}
+	})
+
+	t.Run("line number prefixes", func(t *testing.T) {
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(tmpFile.Name()) + `", "start_line": 1, "end_line": 5}`)
+		res, err := tools.ReadFileHandler(session, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := res.(tools.ReadFileResult)
+		want := "   1│Line 1\n   2│Line 2\n   3│Line 3\n   4│Line 4\n   5│Line 5\n"
+		if result.Content != want {
+			t.Errorf("prefix format mismatch:\nwant %q\ngot  %q", want, result.Content)
 		}
 	})
 

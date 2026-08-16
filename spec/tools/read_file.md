@@ -6,6 +6,8 @@ Read the content of a text file, with optional line-range selection.
 
 Use `read_file` to inspect the content of a known file. For large files, use `start_line` / `end_line` to read specific sections. To search across many files without reading each one, use [`grep_search`](./grep_search.md) instead.
 
+The returned `content` is line-numbered: each line is prefixed with its 1-based file line number (e.g. `"   12│code"`), so the model can reference specific lines when reasoning or when preparing an [`edit`](./edit.md) call.
+
 ## Request
 
 ```json
@@ -38,7 +40,7 @@ Use `read_file` to inspect the content of a known file. For large files, use `st
     "type": "result",
     "result": {
         "file_path": "src/main.go",
-        "content": "package main\n\nimport (\n...",
+        "content": "   1│package main\n   2│\n   3│import (\n   4│    \"fmt\"\n",
         "total_lines": 171,
         "start_line": 1,
         "end_line": 50
@@ -51,10 +53,12 @@ Use `read_file` to inspect the content of a known file. For large files, use `st
 | Field | Type | Description |
 |---|---|---|
 | `file_path` | `string` | The input path as provided. |
-| `content` | `string` | The file content for the requested line range. |
+| `content` | `string` | The file content for the requested line range. Each line is prefixed with its 1-based file line number in `%4d│` format (e.g. `"   12│code"`), so the model can reference specific lines. |
 | `total_lines` | `integer` | Total number of lines in the file. |
 | `start_line` | `integer` | Actual start line returned. |
 | `end_line` | `integer` | Actual last line returned. |
+
+> **Note for `edit`**: the line-number prefix is for reference only. When using the [`edit`](./edit.md) tool, provide the exact text **without** the prefix.
 
 ## Safety Limits
 

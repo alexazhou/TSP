@@ -45,7 +45,12 @@ func newLogEnv(t *testing.T, sessionID string) (string, *api.SessionLogger) {
 	t.Helper()
 	dir := t.TempDir()
 	oldOut, oldFlags := log.Writer(), log.Flags()
-	t.Cleanup(func() { log.SetOutput(oldOut); log.SetFlags(oldFlags) })
+	t.Cleanup(func() {
+		// 关闭 InitLogger 打开的全局日志文件，避免 Windows 上文件句柄阻塞 TempDir 删除
+		api.CloseGlobalLog()
+		log.SetOutput(oldOut)
+		log.SetFlags(oldFlags)
+	})
 	if err := api.InitLogger(dir); err != nil {
 		t.Fatalf("InitLogger: %v", err)
 	}

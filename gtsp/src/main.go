@@ -187,6 +187,7 @@ func main() {
 		sig := <-sigChan
 		log.Printf("Received signal %v, cleaning up processes...", sig)
 		api.GlobalProcessRegistry.KillAll()
+		api.CloseGlobalLog()
 		os.Exit(0)
 	}()
 

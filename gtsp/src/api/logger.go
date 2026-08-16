@@ -14,6 +14,8 @@ import (
 var (
 	globalLogPath string
 	logPathMu     sync.RWMutex
+	globalLogFile *os.File
+	globalLogMu   sync.Mutex
 )
 
 // InitLogger initializes the global log directory path and sets up a global logger
@@ -37,6 +39,16 @@ func InitLogger(logPath string) error {
 		return fmt.Errorf("failed to open log file: %v", err)
 	}
 
+	// Close any previously opened global log file (re-init / test reuse), so the
+	// old file handle is not leaked. On Windows an unclosed handle blocks removal
+	// of the log directory (e.g. test TempDir cleanup).
+	globalLogMu.Lock()
+	if globalLogFile != nil {
+		globalLogFile.Close()
+	}
+	globalLogFile = f
+	globalLogMu.Unlock()
+
 	// 3. Set output to file
 	log.SetOutput(f)
 
@@ -44,6 +56,18 @@ func InitLogger(logPath string) error {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
 	log.Printf("Logger initialized. Log file: %s", logFile)
+	return nil
+}
+
+// CloseGlobalLog closes the global log file opened by InitLogger.
+func CloseGlobalLog() error {
+	globalLogMu.Lock()
+	defer globalLogMu.Unlock()
+	if globalLogFile != nil {
+		err := globalLogFile.Close()
+		globalLogFile = nil
+		return err
+	}
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 func RegisterAll(d *api.Dispatcher) {
 	d.RegisterWithSchema("list_dir", ListDirHandler, ListDirSchema)
 	d.RegisterWithSchema("read_file", ReadFileHandler, ReadFileSchema)
+	d.RegisterWithSchema("read_image", ReadImageHandler, ReadImageSchema)
 	d.RegisterWithSchema("write_file", WriteFileHandler, WriteFileSchema)
 	d.RegisterWithSchema("execute_bash", ExecuteBashHandler, ExecuteBashSchema)
 	d.RegisterWithSchema("edit", EditHandler, EditSchema)

@@ -15,7 +15,7 @@ func TestAllToolsHaveSchema(t *testing.T) {
 
 	schemas := dispatcher.GetSchemas()
 	expectedTools := []string{
-		"list_dir", "read_file", "write_file",
+		"list_dir", "read_file", "read_image", "write_file",
 		"execute_bash", "edit", "grep_search", "glob",
 		"process_output", "process_stop", "process_list",
 	}

@@ -6,6 +6,7 @@ gTSP ships with the following built-in tools. Each tool is registered as a TSP m
 |---|---|---|---|
 | [list_dir](./list_dir.md) | `list_dir` | File System | List directory entries |
 | [read_file](./read_file.md) | `read_file` | File System | Read file content with optional line range |
+| [read_image](./read_image.md) | `read_image` | File System | Read an image file as base64 + metadata |
 | [write_file](./write_file.md) | `write_file` | File System | Create or overwrite a file |
 | [edit](./edit.md) | `edit` | File System | Exact string replacement within a file |
 | [grep_search](./grep_search.md) | `grep_search` | Search | Search file contents by regex |

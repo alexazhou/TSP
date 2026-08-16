@@ -58,6 +58,7 @@ func printUsage() {
 	fmt.Println("  --access-root path     Restrict accessible paths to this root (requires --sandbox)")
 	fmt.Println("  --allow-read=paths     Allow read tools restricted to comma-separated paths (requires --sandbox)")
 	fmt.Println("  --allow-write=paths    Allow write tools restricted to comma-separated paths (requires --sandbox)")
+	fmt.Println("  --max-image-size int   Max image file size in bytes for read_image (default 5242880, i.e. 5MB)")
 	fmt.Println("  --log-path path        Directory to store log files (default ./logs)")
 	fmt.Println()
 }
@@ -89,6 +90,8 @@ func main() {
 	var allowRead, allowWrite PathRuleList
 	flag.Var(&allowRead, "allow-read", "Allow read tools; optionally restrict to comma-separated paths")
 	flag.Var(&allowWrite, "allow-write", "Allow write tools; optionally restrict to comma-separated paths")
+
+	maxImageSize := flag.Int64("max-image-size", 5*1024*1024, "Max image file size in bytes for read_image (default 5MB)")
 	
 	flag.BoolVar(&schemaFlag, "schema", false, "Output JSON schema for all tools")
 	
@@ -160,6 +163,9 @@ func main() {
 	dispatcher := api.NewDispatcher()
 	tools.RegisterAll(dispatcher)
 
+	// Apply max-image-size limit for read_image tool
+	tools.SetMaxImageSize(*maxImageSize)
+
 	// 3. Command Handling
 	args := flag.Args()
 	if (len(args) > 0 && args[0] == "schema") || schemaFlag {
@@ -205,7 +211,7 @@ func handleSchemaCommand(dispatcher *api.Dispatcher, outputFile string) {
 	schemasMap := dispatcher.GetSchemas()
 	schemas := make([]interface{}, 0, len(schemasMap))
 	
-	order := []string{"list_dir", "read_file", "write_file", "edit", "grep_search", "glob", "execute_bash", "process_output", "process_stop"}
+	order := []string{"list_dir", "read_file", "read_image", "write_file", "edit", "grep_search", "glob", "execute_bash", "process_output", "process_stop"}
 	for _, name := range order {
 		if s, ok := schemasMap[name]; ok {
 			schemas = append(schemas, s)

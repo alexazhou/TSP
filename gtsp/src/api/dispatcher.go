@@ -48,14 +48,29 @@ func (d *Dispatcher) GetSchemas() map[string]ToolDefinition {
 	return d.schemas
 }
 
+// maxLogLineLength caps how much of a single request/response line is written
+// to logs. read_image returns base64 payloads that would otherwise bloat
+// log files to an unusable size.
+const maxLogLineLength = 4096
+
+// truncateForLog shortens an in/out log line while keeping the JSON valid
+// enough for debugging. It only affects the log output, never the payload
+// sent to the client.
+func truncateForLog(s string) string {
+	if len(s) <= maxLogLineLength {
+		return s
+	}
+	return s[:maxLogLineLength] + fmt.Sprintf("...[truncated %d bytes]", len(s)-maxLogLineLength)
+}
+
 // HandleRequest processes a raw JSON request from a specific client
 func (d *Dispatcher) HandleRequest(session Session, client Client, data []byte) {
 	// Use session-specific logger if available
 	sessionLogger := session.GetLogger()
 	if sessionLogger != nil {
-		sessionLogger.Printf("→ %s", string(data))
+		sessionLogger.Printf("→ %s", truncateForLog(string(data)))
 	} else {
-		log.Printf("→ %s", string(data))
+		log.Printf("→ %s", truncateForLog(string(data)))
 	}
 
 	var req Request
@@ -304,9 +319,9 @@ func (d *Dispatcher) SendResponse(session Session, client Client, id string, res
 	if data, err := json.Marshal(resp); err == nil {
 		sessionLogger := session.GetLogger()
 		if sessionLogger != nil {
-			sessionLogger.Printf("← %s", string(data))
+			sessionLogger.Printf("← %s", truncateForLog(string(data)))
 		} else {
-			log.Printf("← %s", string(data))
+			log.Printf("← %s", truncateForLog(string(data)))
 		}
 	}
 	client.WriteJSON(resp)
@@ -322,9 +337,9 @@ func (d *Dispatcher) SendError(session Session, client Client, id *string, code 
 	if data, err := json.Marshal(resp); err == nil {
 		sessionLogger := session.GetLogger()
 		if sessionLogger != nil {
-			sessionLogger.Printf("← %s", string(data))
+			sessionLogger.Printf("← %s", truncateForLog(string(data)))
 		} else {
-			log.Printf("← %s", string(data))
+			log.Printf("← %s", truncateForLog(string(data)))
 		}
 	}
 	client.WriteJSON(resp)

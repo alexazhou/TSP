@@ -26,11 +26,12 @@ type ReadFileResult struct {
 	TotalLines int    `json:"total_lines"`
 	StartLine  int    `json:"start_line"`
 	EndLine    int    `json:"end_line"`
+	Truncated  bool   `json:"truncated,omitempty"`
 }
 
 var ReadFileSchema = api.ToolDefinition{
 	Name:        "read_file",
-	Description: "- Reads and returns the content of a specified file\n- Supports line-based slicing for reading specific portions of large files\n- Automatically truncates large files to protect context window\n- Detects and rejects binary files for safety\n- Each content line is prefixed with its 1-based line number (e.g. \"   12│code\") for reference\n- When using 'edit', provide the exact text WITHOUT the line-number prefix\n- Use this tool when you need to read the contents of a file to understand its logic or data",
+	Description: "- Reads and returns the content of a specified file\n- Supports line-based slicing for reading specific portions of large files\n- Full reads of files larger than 25KB are truncated to the first ~1KB of content and marked with 'truncated: true' (plus a notice); use 'start_line'/'end_line' or 'grep_search' to page through large files\n- Detects and rejects binary files for safety\n- Each content line is prefixed with its 1-based line number (e.g. \"   12│code\") for reference\n- When using 'edit', provide the exact text WITHOUT the line-number prefix\n- Use this tool when you need to read the contents of a file to understand its logic or data",
 	InputSchema: map[string]interface{}{
 		"$schema": "https://json-schema.org/draft/2020-12/schema",
 		"type":    "object",
@@ -58,14 +59,39 @@ var ReadFileSchema = api.ToolDefinition{
 }
 
 const (
-	maxFileSizeForFullRead = 100 * 1024 // 100KB, as per spec
+	// truncateThresholdBytes: a full read (no start_line/end_line) of a file
+	// larger than this is truncated to the first truncatedReturnBytes.
+	truncateThresholdBytes = 25 * 1024 // 25KB
+	truncatedReturnBytes   = 1024      // 1KB
 	maxLinesToReturn       = 500       // Safety limit for a single call
 )
 
-// appendNumberedLine writes "N│<line>\n" to buf, prefixing the line with its
-// 1-based file line number so the model can reference specific lines.
-func appendNumberedLine(buf *bytes.Buffer, lineNum int, line []byte) {
-	fmt.Fprintf(buf, "%4d│%s\n", lineNum, line)
+// appendNumberedLine writes "N│<line>\n" to buf. When capBytes > 0 the line is
+// cut so buf never exceeds capBytes; ok reports whether more lines should be
+// collected (false when the cap was reached).
+func appendNumberedLine(buf *bytes.Buffer, lineNum int, line []byte, capBytes int) (ok bool) {
+	prefix := fmt.Sprintf("%4d│", lineNum)
+	if capBytes <= 0 {
+		buf.WriteString(prefix)
+		buf.Write(line)
+		buf.WriteByte('\n')
+		return true
+	}
+	room := capBytes - buf.Len() - 1 // reserve the trailing '\n'
+	if room <= 0 {
+		return false
+	}
+	avail := room - len(prefix)
+	if avail <= 0 {
+		return false
+	}
+	if avail < len(line) {
+		line = line[:avail]
+	}
+	buf.WriteString(prefix)
+	buf.Write(line)
+	buf.WriteByte('\n')
+	return buf.Len() < capBytes
 }
 
 // ReadFileHandler implements read_file with line-based slicing and safety protections
@@ -111,9 +137,13 @@ func ReadFileHandler(session api.Session, params json.RawMessage) (interface{}, 
 	// Reset file pointer after binary check
 	_, _ = f.Seek(0, io.SeekStart)
 
-	// 2. Full read size protection
-	if p.StartLine <= 0 && p.EndLine <= 0 && info.Size() > maxFileSizeForFullRead {
-		return nil, fmt.Errorf("file is too large (%d bytes). Please use 'grep_search' or specify 'start_line' and 'end_line' to read a specific portion", info.Size())
+	// 2. Full-read truncation: a full read (no explicit range) of a file larger
+	// than truncateThresholdBytes returns only the first truncatedReturnBytes.
+	// Explicit line ranges are the intended way to page through large files and
+	// are not truncated.
+	truncated := false
+	if p.StartLine <= 0 && p.EndLine <= 0 && info.Size() > truncateThresholdBytes {
+		truncated = true
 	}
 
 	// 3. Line-based slicing
@@ -121,6 +151,12 @@ func ReadFileHandler(session api.Session, params json.RawMessage) (interface{}, 
 	scanner := bufio.NewScanner(f)
 	currentLine := 0
 	totalLines := 0
+	contentEndLine := 0 // last line actually written to content
+	collecting := true
+	byteCap := 0
+	if truncated {
+		byteCap = truncatedReturnBytes
+	}
 
 	startLine := p.StartLine
 	if startLine <= 0 {
@@ -143,7 +179,14 @@ func ReadFileHandler(session api.Session, params json.RawMessage) (interface{}, 
 			if endLine <= 0 && (currentLine-startLine) >= maxLinesToReturn {
 				continue // Keep counting total lines but stop collecting
 			}
-			appendNumberedLine(&content, currentLine, scanner.Bytes())
+			if !collecting {
+				continue // already filled the truncation cap; keep counting
+			}
+			// Prefix each line with its 1-based file line number so the model
+			// can reference specific lines (e.g. when editing). The prefix uses
+			// the actual file line number, not the slice-relative index.
+			contentEndLine = currentLine
+			collecting = appendNumberedLine(&content, currentLine, scanner.Bytes(), byteCap)
 		}
 	}
 
@@ -155,8 +198,16 @@ func ReadFileHandler(session api.Session, params json.RawMessage) (interface{}, 
 	if endLine > 0 && endLine < actualEnd {
 		actualEnd = endLine
 	}
+	if truncated {
+		actualEnd = contentEndLine
+	}
 	if startLine > totalLines && totalLines > 0 {
 		return nil, fmt.Errorf("start_line (%d) is beyond total lines (%d)", startLine, totalLines)
+	}
+
+	if truncated {
+		fmt.Fprintf(&content, "... (file truncated: first %d of %d bytes shown; use 'grep_search' or specify 'start_line'/'end_line')\n",
+			truncatedReturnBytes, info.Size())
 	}
 
 	return ReadFileResult{
@@ -165,6 +216,7 @@ func ReadFileHandler(session api.Session, params json.RawMessage) (interface{}, 
 		TotalLines: totalLines,
 		StartLine:  startLine,
 		EndLine:    actualEnd,
+		Truncated:  truncated,
 	}, nil
 }
 
@@ -179,7 +231,7 @@ func isBinary(data []byte) bool {
 	}
 	// Check UTF-8 validity
 	if !utf8.Valid(data) {
-		// Some invalid UTF-8 is fine for text files (e.g. mixed encodings),
+		// Some invalid UTF-8 is fine for text files (e.g. mixed encodings), 
 		// but if a large portion is invalid, it's likely binary.
 		invalidCount := 0
 		for len(data) > 0 {

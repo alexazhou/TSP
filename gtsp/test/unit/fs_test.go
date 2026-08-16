@@ -241,6 +241,64 @@ func TestReadFileHandler(t *testing.T) {
 			t.Errorf("expected binary protection error, got %v", err)
 		}
 	})
+
+	t.Run("full read truncation", func(t *testing.T) {
+		// ~30KB of text (>25KB threshold): 3000 lines of 10 bytes each.
+		bigFile := tmpFile.Name() + ".big.txt"
+		var big bytes.Buffer
+		for i := 1; i <= 3000; i++ {
+			fmt.Fprintf(&big, "Line %04d\n", i)
+		}
+		os.WriteFile(bigFile, big.Bytes(), 0644)
+		defer os.Remove(bigFile)
+
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(bigFile) + `"}`)
+		res, err := tools.ReadFileHandler(session, params)
+		if err != nil {
+			t.Fatalf("ReadFileHandler failed: %v", err)
+		}
+		result := res.(tools.ReadFileResult)
+
+		if !result.Truncated {
+			t.Errorf("expected truncated=true for >25KB full read")
+		}
+		if len(result.Content) > 2048 {
+			t.Errorf("truncated content too large: %d bytes", len(result.Content))
+		}
+		if !strings.Contains(result.Content, "file truncated") {
+			t.Errorf("expected truncation notice, got: %.200s", result.Content)
+		}
+		if !strings.HasPrefix(result.Content, "   1│") {
+			t.Errorf("content should start with line 1 prefix, got: %.100s", result.Content)
+		}
+		if result.TotalLines != 3000 {
+			t.Errorf("total_lines: got %d, want 3000", result.TotalLines)
+		}
+	})
+
+	t.Run("range read not truncated", func(t *testing.T) {
+		bigFile := tmpFile.Name() + ".big.txt"
+		var big bytes.Buffer
+		for i := 1; i <= 3000; i++ {
+			fmt.Fprintf(&big, "Line %04d\n", i)
+		}
+		os.WriteFile(bigFile, big.Bytes(), 0644)
+		defer os.Remove(bigFile)
+
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(bigFile) + `", "start_line": 100, "end_line": 105}`)
+		res, err := tools.ReadFileHandler(session, params)
+		if err != nil {
+			t.Fatalf("ReadFileHandler failed: %v", err)
+		}
+		result := res.(tools.ReadFileResult)
+		if result.Truncated {
+			t.Errorf("explicit range read should not be truncated")
+		}
+		want := " 100│Line 0100\n 101│Line 0101\n 102│Line 0102\n 103│Line 0103\n 104│Line 0104\n 105│Line 0105\n"
+		if result.Content != want {
+			t.Errorf("range content mismatch:\nwant %q\ngot  %q", want, result.Content)
+		}
+	})
 }
 
 func TestWriteFileHandler(t *testing.T) {

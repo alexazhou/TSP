@@ -57,14 +57,17 @@ The returned `content` is line-numbered: each line is prefixed with its 1-based 
 | `total_lines` | `integer` | Total number of lines in the file. |
 | `start_line` | `integer` | Actual start line returned. |
 | `end_line` | `integer` | Actual last line returned. |
+| `truncated` | `boolean` | `true` when the file exceeded the full-read size limit and `content` was truncated to the first ~1 KB. Omitted when `false`. |
 
 > **Note for `edit`**: the line-number prefix is for reference only. When using the [`edit`](./edit.md) tool, provide the exact text **without** the prefix.
+
+> **Truncation**: a full read (no `start_line`/`end_line`) of a file larger than 25 KB returns only the first ~1 KB of `content`, sets `truncated: true`, and appends a notice with the file size. Use `start_line`/`end_line` or [`grep_search`](./grep_search.md) to page through large files.
 
 ## Safety Limits
 
 | Limit | Value | Behavior on Exceed |
 |---|---|---|
-| Full-read file size | 100 KB | Error: use `grep_search` or specify line range |
+| Full-read file size | 25 KB | Truncated to the first ~1 KB, sets `truncated: true` |
 | Max lines per call | 500 lines | Silently capped (use `start_line`/`end_line` to page) |
 | Binary files | — | Rejected: `file appears to be binary and cannot be read as text` |
 
@@ -77,7 +80,6 @@ Binary detection checks for null bytes and excessive invalid UTF-8 sequences in 
 | File not found | `file not found: <path>` |
 | Path is a directory | `path is a directory: <path>` |
 | File is binary | `file appears to be binary and cannot be read as text` |
-| File too large (no range given) | `file is too large (<N> bytes). Please use 'grep_search' or specify 'start_line' and 'end_line'...` |
 | `start_line` beyond EOF | `start_line (<N>) is beyond total lines (<M>)` |
 | Path outside workspace | `security error: path "..." is outside of workspace root "..."` |
 

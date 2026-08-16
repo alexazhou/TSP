@@ -58,7 +58,7 @@ func printUsage() {
 	fmt.Println("  --access-root path     Restrict accessible paths to this root (requires --sandbox)")
 	fmt.Println("  --allow-read=paths     Allow read tools restricted to comma-separated paths (requires --sandbox)")
 	fmt.Println("  --allow-write=paths    Allow write tools restricted to comma-separated paths (requires --sandbox)")
-	fmt.Println("  --max-image-size int   Max image file size in bytes for read_image (default 5242880, i.e. 5MB)")
+	fmt.Println("  --max-image-size int   Max image file size in bytes for read_image (default 5242880, 0 = no limit)")
 	fmt.Println("  --log-path path        Directory to store log files (default ./logs)")
 	fmt.Println()
 }
@@ -91,7 +91,7 @@ func main() {
 	flag.Var(&allowRead, "allow-read", "Allow read tools; optionally restrict to comma-separated paths")
 	flag.Var(&allowWrite, "allow-write", "Allow write tools; optionally restrict to comma-separated paths")
 
-	maxImageSize := flag.Int64("max-image-size", 5*1024*1024, "Max image file size in bytes for read_image (default 5MB)")
+	maxImageSize := flag.Int64("max-image-size", 5*1024*1024, "Max image file size in bytes for read_image (default 5MB, 0 = no limit)")
 	
 	flag.BoolVar(&schemaFlag, "schema", false, "Output JSON schema for all tools")
 	

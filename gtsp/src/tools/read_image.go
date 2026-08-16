@@ -33,12 +33,27 @@ type ReadImageResult struct {
 	Base64    string `json:"base64"`
 }
 
+// base64LogKeepPrefix is the number of leading characters kept when masking a
+// base64 payload in a log line — enough to recognize the payload head.
+const base64LogKeepPrefix = 24
+
+// RedactForLog returns a copy of the result with the base64 payload masked, so
+// tool results can be logged without writing the full image bytes into logs.
+// The Dispatcher calls this when composing its log line; the value sent to the
+// client is never affected.
+func (r ReadImageResult) RedactForLog() interface{} {
+	if len(r.Base64) > base64LogKeepPrefix {
+		r.Base64 = r.Base64[:base64LogKeepPrefix] + fmt.Sprintf("...[base64:%d chars]", len(r.Base64))
+	}
+	return r
+}
+
 var ReadImageSchema = api.ToolDefinition{
 	Name: "read_image",
 	Description: "- Reads and returns an image file as base64 plus metadata (mime_type/format/width/height/size_bytes)\n" +
 		"- Detects format by magic bytes (png/jpeg/gif/webp/bmp), not by file extension\n" +
 		"- Width/height are returned for png/jpeg/gif; webp/bmp return 0 (no external image lib in v1)\n" +
-		"- Rejects images over the max size limit (default 5MB)\n" +
+		"- Rejects images over the max size limit (default 5MB; 0 disables the limit)\n" +
 		"- Use this tool when the agent needs to view or analyze an image file (e.g. a screenshot)",
 	InputSchema: map[string]interface{}{
 		"$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -56,11 +71,13 @@ var ReadImageSchema = api.ToolDefinition{
 
 // MaxImageSize is the maximum allowed image file size in raw bytes.
 // It is configurable via the --max-image-size flag (default 5MB).
+// A value of 0 disables the size limit.
 var MaxImageSize int64 = 5 * 1024 * 1024
 
 // SetMaxImageSize updates the max image file size limit (in bytes).
+// 0 disables the limit; negative values are ignored.
 func SetMaxImageSize(size int64) {
-	if size > 0 {
+	if size >= 0 {
 		MaxImageSize = size
 	}
 }
@@ -127,7 +144,7 @@ func ReadImageHandler(session api.Session, params json.RawMessage) (interface{},
 	if info.IsDir() {
 		return nil, fmt.Errorf("path is a directory: %s", p.FilePath)
 	}
-	if info.Size() > MaxImageSize {
+	if MaxImageSize > 0 && info.Size() > MaxImageSize {
 		return nil, fmt.Errorf("image file is too large (%d bytes, max %d bytes). Please compress the image and try again", info.Size(), MaxImageSize)
 	}
 

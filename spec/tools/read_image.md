@@ -78,7 +78,7 @@ A JPEG file named `photo.jpg` still returns `format: "jpeg"`.
 | Max image size | 5 MB (raw bytes) | Rejected: `image file is too large (<N> bytes, max <M> bytes)...` |
 | Unsupported format | — | Rejected: `unsupported image format: <path> (supported: png, jpeg, gif, webp, bmp)` |
 
-The max size is configurable via the `--max-image-size` server flag (bytes). The file is `stat`-ed **before** reading; oversized files are rejected without being read. `svg` is not supported in v1 — it is plain text and can be read with `read_file`.
+The max size is configurable via the `--max-image-size` server flag (bytes); `0` disables the limit. The file is `stat`-ed **before** reading; oversized files are rejected without being read. `svg` is not supported in v1 — it is plain text and can be read with `read_file`.
 
 ## Error Cases
 

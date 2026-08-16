@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"unicode/utf8"
 )
 
 // HandlerFunc defines the signature for request handlers
@@ -49,18 +50,23 @@ func (d *Dispatcher) GetSchemas() map[string]ToolDefinition {
 }
 
 // maxLogLineLength caps how much of a single request/response line is written
-// to logs. read_image returns base64 payloads that would otherwise bloat
-// log files to an unusable size.
+// to logs. Large tool results (e.g. read_image base64) are kept out of logs by
+// the result type's RedactForLog; this cap is a backstop for any other
+// oversized line.
 const maxLogLineLength = 4096
 
-// truncateForLog shortens an in/out log line while keeping the JSON valid
-// enough for debugging. It only affects the log output, never the payload
-// sent to the client.
+// truncateForLog shortens an in/out log line for the log file. It only affects
+// the log output, never the payload sent to the client. The cut lands on a
+// UTF-8 rune boundary so multi-byte content is never split mid-rune.
 func truncateForLog(s string) string {
 	if len(s) <= maxLogLineLength {
 		return s
 	}
-	return s[:maxLogLineLength] + fmt.Sprintf("...[truncated %d bytes]", len(s)-maxLogLineLength)
+	cut := maxLogLineLength
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + fmt.Sprintf("...[truncated %d bytes]", len(s)-cut)
 }
 
 // HandleRequest processes a raw JSON request from a specific client
@@ -316,7 +322,13 @@ func (d *Dispatcher) SendResponse(session Session, client Client, id string, res
 		Type:   "result",
 		Result: result,
 	}
-	if data, err := json.Marshal(resp); err == nil {
+	// Log a redacted copy if the result type opts in; the client always gets
+	// the full, unmasked payload.
+	logResp := resp
+	if lr, ok := result.(LogRedactor); ok {
+		logResp.Result = lr.RedactForLog()
+	}
+	if data, err := json.Marshal(logResp); err == nil {
 		sessionLogger := session.GetLogger()
 		if sessionLogger != nil {
 			sessionLogger.Printf("← %s", truncateForLog(string(data)))

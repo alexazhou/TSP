@@ -132,3 +132,11 @@ type Session interface {
 type Client interface {
 	WriteJSON(v interface{}) error
 }
+
+// LogRedactor lets a tool result type provide a log-safe copy of itself with
+// sensitive fields (e.g. base64 image payloads) masked. The Dispatcher uses it
+// when writing response lines to logs; the payload sent to the client is never
+// affected.
+type LogRedactor interface {
+	RedactForLog() interface{}
+}

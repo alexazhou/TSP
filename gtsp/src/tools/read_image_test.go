@@ -12,6 +12,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -364,6 +365,25 @@ func TestReadImageHandler_TooLarge(t *testing.T) {
 	}
 }
 
+func TestReadImageHandler_UnlimitedSize(t *testing.T) {
+	tmp := t.TempDir()
+	path := writeFixture(t, tmp, "big.png", makePNG(t))
+
+	// MaxImageSize = 0 means no limit: even a fixture larger than any
+	// artificial cap is accepted.
+	original := MaxImageSize
+	defer func() { MaxImageSize = original }()
+	SetMaxImageSize(0)
+
+	result, err := callReadImage(t, &mockSession{}, path)
+	if err != nil {
+		t.Fatalf("unexpected error with unlimited size: %v", err)
+	}
+	if result.Format != "png" {
+		t.Errorf("expected png, got %q", result.Format)
+	}
+}
+
 func TestReadImageHandler_MissingFilePath(t *testing.T) {
 	params, _ := json.Marshal(ReadImageParams{})
 	_, err := ReadImageHandler(&mockSession{}, params)
@@ -389,10 +409,61 @@ func TestSetMaxImageSize(t *testing.T) {
 	if MaxImageSize != 123 {
 		t.Errorf("SetMaxImageSize(123): got %d", MaxImageSize)
 	}
-	// non-positive input is ignored
+	// negative input is ignored
 	SetMaxImageSize(-1)
 	if MaxImageSize != 123 {
 		t.Errorf("negative input should be ignored, got %d", MaxImageSize)
+	}
+	// 0 disables the limit
+	SetMaxImageSize(0)
+	if MaxImageSize != 0 {
+		t.Errorf("SetMaxImageSize(0): got %d, want 0", MaxImageSize)
+	}
+}
+
+// ───────────────────── RedactForLog ─────────────────────
+
+func TestReadImageResult_RedactForLog(t *testing.T) {
+	full := strings.Repeat("A", 100)
+	r := ReadImageResult{
+		FilePath:  "/abs/a.png",
+		MimeType:  "image/png",
+		Format:    "png",
+		Width:     2,
+		Height:    3,
+		SizeBytes: 100,
+		Base64:    full,
+	}
+
+	red, ok := r.RedactForLog().(ReadImageResult)
+	if !ok {
+		t.Fatalf("RedactForLog returned %T, want ReadImageResult", r.RedactForLog())
+	}
+	if red.Base64 == full {
+		t.Error("base64 should be masked")
+	}
+	if !strings.HasPrefix(red.Base64, full[:base64LogKeepPrefix]) {
+		t.Errorf("base64 should keep a recognizable prefix, got %q", red.Base64)
+	}
+	if !strings.Contains(red.Base64, "100 chars") {
+		t.Errorf("masked base64 should describe the true length, got %q", red.Base64)
+	}
+	// Metadata must be untouched.
+	if red.FilePath != r.FilePath || red.MimeType != r.MimeType || red.Format != r.Format ||
+		red.Width != r.Width || red.Height != r.Height || red.SizeBytes != r.SizeBytes {
+		t.Errorf("metadata changed by RedactForLog: %+v", red)
+	}
+	// The original must not be mutated.
+	if r.Base64 != full {
+		t.Error("original result must not be mutated")
+	}
+}
+
+func TestReadImageResult_RedactForLog_ShortKept(t *testing.T) {
+	r := ReadImageResult{Base64: "aGVsbG8="}
+	red := r.RedactForLog().(ReadImageResult)
+	if red.Base64 != "aGVsbG8=" {
+		t.Errorf("short base64 should be kept as-is, got %q", red.Base64)
 	}
 }
 

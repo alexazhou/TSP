@@ -45,7 +45,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go test ./test/ -v -timeout 120s
+        run: go test ./test/... -v -timeout 120s
 
       - name: Clean up
         if: always()

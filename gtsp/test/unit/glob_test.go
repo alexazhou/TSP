@@ -1,22 +1,13 @@
-package tools
+package unit_test
 
 import (
+	"gTSP/src/tools"
 	"encoding/json"
-	"gTSP/src/api"
 	"os"
 	"path/filepath"
 	"sort"
 	"testing"
 )
-
-// mockSession implements api.Session for testing
-type mockSession struct {
-	api.Session
-}
-
-func (m *mockSession) CheckRead(absPath string) error {
-	return nil
-}
 
 func TestGlobHandler_DoubleStar(t *testing.T) {
 	// Create a temporary directory structure
@@ -71,23 +62,23 @@ func TestGlobHandler_DoubleStar(t *testing.T) {
 		},
 	}
 
-	session := &mockSession{}
+	session := setupTestSession(tmpDir)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			params := GlobParams{
+			params := tools.GlobParams{
 				Pattern:       tt.pattern,
 				Path:          tmpDir,
 				CaseSensitive: tt.caseSensitive,
 			}
 			paramBytes, _ := json.Marshal(params)
 
-			res, err := GlobHandler(session, paramBytes)
+			res, err := tools.GlobHandler(session, paramBytes)
 			if err != nil {
 				t.Fatalf("GlobHandler error: %v", err)
 			}
 
-			globRes, ok := res.(GlobResult)
+			globRes, ok := res.(tools.GlobResult)
 			if !ok {
 				t.Fatalf("expected GlobResult, got %T", res)
 			}

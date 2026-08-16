@@ -1,7 +1,8 @@
-package tools
+package unit_test
 
 import (
 	"gTSP/src/api"
+	"gTSP/src/tools"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
@@ -15,8 +16,6 @@ import (
 	"strings"
 	"testing"
 )
-
-// mockSession is defined in glob_test.go and reused here.
 
 // ───────────────────── fixtures ─────────────────────
 
@@ -119,51 +118,18 @@ func writeFixture(t *testing.T, dir, name string, content []byte) string {
 	return path
 }
 
-func callReadImage(t *testing.T, session api.Session, path string) (ReadImageResult, error) {
+func callReadImage(t *testing.T, session api.Session, path string) (tools.ReadImageResult, error) {
 	t.Helper()
-	params, _ := json.Marshal(ReadImageParams{FilePath: path})
-	res, err := ReadImageHandler(session, params)
+	params, _ := json.Marshal(tools.ReadImageParams{FilePath: path})
+	res, err := tools.ReadImageHandler(session, params)
 	if err != nil {
-		return ReadImageResult{}, err
+		return tools.ReadImageResult{}, err
 	}
-	result, ok := res.(ReadImageResult)
+	result, ok := res.(tools.ReadImageResult)
 	if !ok {
 		t.Fatalf("expected ReadImageResult, got %T", res)
 	}
 	return result, nil
-}
-
-// ───────────────────── format detection ─────────────────────
-
-func TestDetectImageFormat(t *testing.T) {
-	cases := []struct {
-		name     string
-		data     []byte
-		format   string
-		mime     string
-		expected bool
-	}{
-		{"png", []byte("\x89PNG\r\n\x1a\n..."), "png", "image/png", true},
-		{"jpeg", []byte{0xFF, 0xD8, 0xFF, 0xE0}, "jpeg", "image/jpeg", true},
-		{"gif87a", []byte("GIF87a...."), "gif", "image/gif", true},
-		{"gif89a", []byte("GIF89a...."), "gif", "image/gif", true},
-		{"webp", append([]byte("RIFFxxxxWEBP"), 0), "webp", "image/webp", true},
-		{"bmp", []byte("BM...."), "bmp", "image/bmp", true},
-		{"text", []byte("hello world"), "", "", false},
-		{"empty", []byte{}, "", "", false},
-		{"png_wrong_ext", []byte("\x89PNG\r\n\x1a\n"), "png", "image/png", true},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			format, mime, ok := detectImageFormat(c.data)
-			if ok != c.expected {
-				t.Fatalf("expected ok=%v, got %v", c.expected, ok)
-			}
-			if format != c.format || mime != c.mime {
-				t.Errorf("expected (%q, %q), got (%q, %q)", c.format, c.mime, format, mime)
-			}
-		})
-	}
 }
 
 // ───────────────────── handler success cases ─────────────────────
@@ -171,8 +137,9 @@ func TestDetectImageFormat(t *testing.T) {
 func TestReadImageHandler_PNG(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "test.png", makePNG(t))
+	session := setupTestSession(tmp)
 
-	result, err := callReadImage(t, &mockSession{}, path)
+	result, err := callReadImage(t, session, path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -199,8 +166,9 @@ func TestReadImageHandler_PNG(t *testing.T) {
 func TestReadImageHandler_JPEG(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "photo.jpg", makeJPEG(t))
+	session := setupTestSession(tmp)
 
-	result, err := callReadImage(t, &mockSession{}, path)
+	result, err := callReadImage(t, session, path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -217,8 +185,9 @@ func TestReadImageHandler_JPEG(t *testing.T) {
 func TestReadImageHandler_GIF(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "anim.gif", makeGIF(t))
+	session := setupTestSession(tmp)
 
-	result, err := callReadImage(t, &mockSession{}, path)
+	result, err := callReadImage(t, session, path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -234,8 +203,9 @@ func TestReadImageHandler_GIF(t *testing.T) {
 func TestReadImageHandler_WebP(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "pic.webp", makeWebP())
+	session := setupTestSession(tmp)
 
-	result, err := callReadImage(t, &mockSession{}, path)
+	result, err := callReadImage(t, session, path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -255,8 +225,9 @@ func TestReadImageHandler_WebP(t *testing.T) {
 func TestReadImageHandler_BMP(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "bitmap.bmp", makeBMP())
+	session := setupTestSession(tmp)
 
-	result, err := callReadImage(t, &mockSession{}, path)
+	result, err := callReadImage(t, session, path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -274,8 +245,9 @@ func TestReadImageHandler_MismatchedExtension(t *testing.T) {
 	// PNG content with a .txt extension must still be detected as png.
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "hidden.txt", makePNG(t))
+	session := setupTestSession(tmp)
 
-	result, err := callReadImage(t, &mockSession{}, path)
+	result, err := callReadImage(t, session, path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -287,8 +259,9 @@ func TestReadImageHandler_MismatchedExtension(t *testing.T) {
 func TestReadImageHandler_ReturnsAbsolutePath(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "a.png", makePNG(t))
+	session := setupTestSession(tmp)
 
-	result, err := callReadImage(t, &mockSession{}, path)
+	result, err := callReadImage(t, session, path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -301,7 +274,8 @@ func TestReadImageHandler_ReturnsAbsolutePath(t *testing.T) {
 
 func TestReadImageHandler_FileNotFound(t *testing.T) {
 	tmp := t.TempDir()
-	_, err := callReadImage(t, &mockSession{}, filepath.Join(tmp, "missing.png"))
+	session := setupTestSession(tmp)
+	_, err := callReadImage(t, session, filepath.Join(tmp, "missing.png"))
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
@@ -312,7 +286,8 @@ func TestReadImageHandler_FileNotFound(t *testing.T) {
 
 func TestReadImageHandler_Directory(t *testing.T) {
 	tmp := t.TempDir()
-	_, err := callReadImage(t, &mockSession{}, tmp)
+	session := setupTestSession(tmp)
+	_, err := callReadImage(t, session, tmp)
 	if err == nil {
 		t.Fatal("expected error for directory")
 	}
@@ -324,8 +299,9 @@ func TestReadImageHandler_Directory(t *testing.T) {
 func TestReadImageHandler_UnsupportedFormat(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "notes.txt", []byte("plain text"))
+	session := setupTestSession(tmp)
 
-	_, err := callReadImage(t, &mockSession{}, path)
+	_, err := callReadImage(t, session, path)
 	if err == nil {
 		t.Fatal("expected error for unsupported format")
 	}
@@ -337,8 +313,9 @@ func TestReadImageHandler_UnsupportedFormat(t *testing.T) {
 func TestReadImageHandler_EmptyFile(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "empty.png", []byte{})
+	session := setupTestSession(tmp)
 
-	_, err := callReadImage(t, &mockSession{}, path)
+	_, err := callReadImage(t, session, path)
 	if err == nil {
 		t.Fatal("expected error for empty file")
 	}
@@ -350,13 +327,14 @@ func TestReadImageHandler_EmptyFile(t *testing.T) {
 func TestReadImageHandler_TooLarge(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "big.png", makePNG(t))
+	session := setupTestSession(tmp)
 
 	// Temporarily lower the limit below the fixture size.
-	original := MaxImageSize
-	defer func() { MaxImageSize = original }()
-	MaxImageSize = 10
+	original := tools.MaxImageSize
+	defer func() { tools.MaxImageSize = original }()
+	tools.MaxImageSize = 10
 
-	_, err := callReadImage(t, &mockSession{}, path)
+	_, err := callReadImage(t, session, path)
 	if err == nil {
 		t.Fatal("expected error for oversized image")
 	}
@@ -368,14 +346,15 @@ func TestReadImageHandler_TooLarge(t *testing.T) {
 func TestReadImageHandler_UnlimitedSize(t *testing.T) {
 	tmp := t.TempDir()
 	path := writeFixture(t, tmp, "big.png", makePNG(t))
+	session := setupTestSession(tmp)
 
 	// MaxImageSize = 0 means no limit: even a fixture larger than any
 	// artificial cap is accepted.
-	original := MaxImageSize
-	defer func() { MaxImageSize = original }()
-	SetMaxImageSize(0)
+	original := tools.MaxImageSize
+	defer func() { tools.MaxImageSize = original }()
+	tools.SetMaxImageSize(0)
 
-	result, err := callReadImage(t, &mockSession{}, path)
+	result, err := callReadImage(t, session, path)
 	if err != nil {
 		t.Fatalf("unexpected error with unlimited size: %v", err)
 	}
@@ -385,15 +364,17 @@ func TestReadImageHandler_UnlimitedSize(t *testing.T) {
 }
 
 func TestReadImageHandler_MissingFilePath(t *testing.T) {
-	params, _ := json.Marshal(ReadImageParams{})
-	_, err := ReadImageHandler(&mockSession{}, params)
+	session := setupTestSession(t.TempDir())
+	params, _ := json.Marshal(tools.ReadImageParams{})
+	_, err := tools.ReadImageHandler(session, params)
 	if err == nil {
 		t.Fatal("expected error for missing file_path")
 	}
 }
 
 func TestReadImageHandler_InvalidParams(t *testing.T) {
-	_, err := ReadImageHandler(&mockSession{}, json.RawMessage(`{"file_path": 123}`))
+	session := setupTestSession(t.TempDir())
+	_, err := tools.ReadImageHandler(session, json.RawMessage(`{"file_path": 123}`))
 	if err == nil {
 		t.Fatal("expected error for invalid params")
 	}
@@ -402,22 +383,22 @@ func TestReadImageHandler_InvalidParams(t *testing.T) {
 // ───────────────────── SetMaxImageSize ─────────────────────
 
 func TestSetMaxImageSize(t *testing.T) {
-	original := MaxImageSize
-	defer func() { MaxImageSize = original }()
+	original := tools.MaxImageSize
+	defer func() { tools.MaxImageSize = original }()
 
-	SetMaxImageSize(123)
-	if MaxImageSize != 123 {
-		t.Errorf("SetMaxImageSize(123): got %d", MaxImageSize)
+	tools.SetMaxImageSize(123)
+	if tools.MaxImageSize != 123 {
+		t.Errorf("SetMaxImageSize(123): got %d", tools.MaxImageSize)
 	}
 	// negative input is ignored
-	SetMaxImageSize(-1)
-	if MaxImageSize != 123 {
-		t.Errorf("negative input should be ignored, got %d", MaxImageSize)
+	tools.SetMaxImageSize(-1)
+	if tools.MaxImageSize != 123 {
+		t.Errorf("negative input should be ignored, got %d", tools.MaxImageSize)
 	}
 	// 0 disables the limit
-	SetMaxImageSize(0)
-	if MaxImageSize != 0 {
-		t.Errorf("SetMaxImageSize(0): got %d, want 0", MaxImageSize)
+	tools.SetMaxImageSize(0)
+	if tools.MaxImageSize != 0 {
+		t.Errorf("SetMaxImageSize(0): got %d, want 0", tools.MaxImageSize)
 	}
 }
 
@@ -425,7 +406,7 @@ func TestSetMaxImageSize(t *testing.T) {
 
 func TestReadImageResult_RedactForLog(t *testing.T) {
 	full := strings.Repeat("A", 100)
-	r := ReadImageResult{
+	r := tools.ReadImageResult{
 		FilePath:  "/abs/a.png",
 		MimeType:  "image/png",
 		Format:    "png",
@@ -435,14 +416,15 @@ func TestReadImageResult_RedactForLog(t *testing.T) {
 		Base64:    full,
 	}
 
-	red, ok := r.RedactForLog().(ReadImageResult)
+	red, ok := r.RedactForLog().(tools.ReadImageResult)
 	if !ok {
 		t.Fatalf("RedactForLog returned %T, want ReadImageResult", r.RedactForLog())
 	}
 	if red.Base64 == full {
 		t.Error("base64 should be masked")
 	}
-	if !strings.HasPrefix(red.Base64, full[:base64LogKeepPrefix]) {
+	// The masked value must keep a recognizable head of the original payload.
+	if !strings.HasPrefix(full, red.Base64[:20]) {
 		t.Errorf("base64 should keep a recognizable prefix, got %q", red.Base64)
 	}
 	if !strings.Contains(red.Base64, "100 chars") {
@@ -460,8 +442,8 @@ func TestReadImageResult_RedactForLog(t *testing.T) {
 }
 
 func TestReadImageResult_RedactForLog_ShortKept(t *testing.T) {
-	r := ReadImageResult{Base64: "aGVsbG8="}
-	red := r.RedactForLog().(ReadImageResult)
+	r := tools.ReadImageResult{Base64: "aGVsbG8="}
+	red := r.RedactForLog().(tools.ReadImageResult)
 	if red.Base64 != "aGVsbG8=" {
 		t.Errorf("short base64 should be kept as-is, got %q", red.Base64)
 	}

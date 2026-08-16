@@ -6,7 +6,7 @@
 - 测试图片在脚本内用标准库生成
 
 用法:
-    python3 gtsp/test/e2e_read_image_verify.py
+    python3 gtsp/test/e2e/read_image_verify.py
 """
 import base64
 import json
@@ -18,7 +18,7 @@ import sys
 import tempfile
 import zlib
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
 def build_gtsp():

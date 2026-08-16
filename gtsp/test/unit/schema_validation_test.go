@@ -1,4 +1,4 @@
-package handlers_test
+package unit_test
 
 import (
 	"gTSP/src/api"

@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_PROTOCOL_VERSION = "0.3"
 
+# 子进程 stdout/stderr 的 StreamReader buffer 上限。
+# asyncio 默认 64KB（2**16），read_image 等大响应（base64 可达数 MB）会超出导致读取失败，
+# 这里放宽到 10MB 以支持大图片等大 payload。
+_STREAM_READER_LIMIT = 10 * 1024 * 1024
+
 
 class TSPClient:
     """TSP 客户端，只懂 TSP 协议，不涉及 LLM 格式。
@@ -78,6 +83,7 @@ class TSPClient:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            limit=_STREAM_READER_LIMIT,
         )
         self._read_task = asyncio.create_task(self._read_loop())
         self._stderr_task = asyncio.create_task(self._read_stderr_loop())

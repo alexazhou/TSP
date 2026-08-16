@@ -3,8 +3,13 @@ package handlers_test
 import (
 	"gTSP/src/api"
 	"gTSP/src/tools"
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -529,6 +534,103 @@ func TestSearchHandlers(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "path not found") {
 			t.Errorf("expected 'path not found' error, got: %v", err)
+		}
+	})
+}
+
+// makeMiniPNG writes a small valid PNG (2x2) to path and returns its bytes.
+func makeMiniPNG(t *testing.T, path string) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	img.Set(0, 0, color.RGBA{255, 0, 0, 255})
+	img.Set(1, 0, color.RGBA{0, 255, 0, 255})
+	img.Set(0, 1, color.RGBA{0, 0, 255, 255})
+	img.Set(1, 1, color.RGBA{255, 255, 0, 255})
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("failed to encode png: %v", err)
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+		t.Fatalf("failed to write png: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestReadImageHandler(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "gt-readimage-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	imgPath := filepath.Join(tmpDir, "shot.png")
+	original := makeMiniPNG(t, imgPath)
+
+	session := setupTestSession(tmpDir)
+
+	t.Run("returns base64 and metadata", func(t *testing.T) {
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(imgPath) + `"}`)
+		res, err := tools.ReadImageHandler(session, params)
+		if err != nil {
+			t.Fatalf("ReadImageHandler failed: %v", err)
+		}
+		result, ok := res.(tools.ReadImageResult)
+		if !ok {
+			t.Fatalf("expected ReadImageResult, got %T", res)
+		}
+		if result.Format != "png" || result.MimeType != "image/png" {
+			t.Errorf("format/mime: got %q/%q", result.Format, result.MimeType)
+		}
+		if result.Width != 2 || result.Height != 2 {
+			t.Errorf("dimensions: got %dx%d, want 2x2", result.Width, result.Height)
+		}
+		if result.SizeBytes != int64(len(original)) {
+			t.Errorf("size_bytes: got %d, want %d", result.SizeBytes, len(original))
+		}
+		decoded, err := base64.StdEncoding.DecodeString(result.Base64)
+		if err != nil {
+			t.Fatalf("base64 decode failed: %v", err)
+		}
+		if !bytes.Equal(decoded, original) {
+			t.Errorf("base64 content mismatch")
+		}
+		// Absolute path is returned
+		if !filepath.IsAbs(result.FilePath) {
+			t.Errorf("file_path should be absolute, got %q", result.FilePath)
+		}
+	})
+
+	t.Run("rejects text file", func(t *testing.T) {
+		txtPath := filepath.Join(tmpDir, "notes.txt")
+		os.WriteFile(txtPath, []byte("not an image"), 0644)
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(txtPath) + `"}`)
+		_, err := tools.ReadImageHandler(session, params)
+		if err == nil || !strings.Contains(err.Error(), "unsupported image format") {
+			t.Errorf("expected unsupported format error, got %v", err)
+		}
+	})
+
+	t.Run("rejects path outside sandbox", func(t *testing.T) {
+		// Narrow the server-level workdir root to tmpDir and enable sandbox,
+		// then any path outside must be rejected by ValidatePath.
+		oldRoot := api.GetWorkdirRoot()
+		oldEnabled := api.IsSandboxEnabled()
+		defer func() {
+			_ = api.SetWorkdirRoot(oldRoot)
+			api.SetSandboxEnabled(oldEnabled)
+		}()
+		if err := api.SetWorkdirRoot(tmpDir); err != nil {
+			t.Fatalf("SetWorkdirRoot failed: %v", err)
+		}
+		api.SetSandboxEnabled(true)
+
+		params := json.RawMessage(`{"file_path": "/etc/hosts"}`)
+		_, err := tools.ReadImageHandler(session, params)
+		if err == nil {
+			t.Fatal("expected sandbox error, got nil")
+		}
+		if !strings.Contains(err.Error(), "security error") {
+			t.Errorf("expected security error, got: %v", err)
 		}
 	})
 }

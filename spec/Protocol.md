@@ -411,7 +411,7 @@ The `capabilities.sandbox` field in the `initialize` response lists every sandbo
 
 | Feature | Config value type | Description |
 |---|---|---|
-| `"read"` | `PathRule[]` | Access control rules for read tools (`read_file`, `list_dir`, `glob`, `grep_search`). |
+| `"read"` | `PathRule[]` | Access control rules for read tools (`read_file`, `read_image`, `list_dir`, `glob`, `grep_search`). |
 | `"write"` | `PathRule[]` | Access control rules for write tools (`write_file`, `edit`). |
 | `"network"` | `boolean` | Whether outbound network access is permitted. `true` allows network calls; `false` blocks all outbound connections. |
 

@@ -411,7 +411,7 @@ Client                                          Server
 
 | 特性 | 配置值类型 | 描述 |
 |---|---|---|
-| `"read"` | `PathRule[]` | 读工具的访问控制规则（`read_file`、`list_dir`、`glob`、`grep_search`）。 |
+| `"read"` | `PathRule[]` | 读工具的访问控制规则（`read_file`、`read_image`、`list_dir`、`glob`、`grep_search`）。 |
 | `"write"` | `PathRule[]` | 写工具的访问控制规则（`write_file`、`edit`）。 |
 | `"network"` | `boolean` | 是否允许出站网络访问。`true` 允许；`false` 阻止所有出站连接。 |
 

@@ -301,6 +301,103 @@ func TestReadFileHandler(t *testing.T) {
 	})
 }
 
+// TestReadFile_Truncation exercises the boundary conditions and edge cases of
+// the 25KB full-read truncation.
+func TestReadFile_Truncation(t *testing.T) {
+	session := setupTestSession(t.TempDir())
+
+	// writeLines writes lineCount lines formatted by lineFmt and returns the path.
+	writeLines := func(name, lineFmt string, lineCount int) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), name)
+		var buf bytes.Buffer
+		for i := 1; i <= lineCount; i++ {
+			fmt.Fprintf(&buf, lineFmt, i)
+		}
+		if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+			t.Fatalf("write fixture: %v", err)
+		}
+		return path
+	}
+
+	// fullRead runs ReadFileHandler with no range and returns the result.
+	fullRead := func(path string) tools.ReadFileResult {
+		t.Helper()
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(path) + `"}`)
+		res, err := tools.ReadFileHandler(session, params)
+		if err != nil {
+			t.Fatalf("ReadFileHandler failed: %v", err)
+		}
+		return res.(tools.ReadFileResult)
+	}
+
+	t.Run("exactly at 25KB threshold is not truncated", func(t *testing.T) {
+		// 2560 lines * 10 bytes = 25600 bytes = exactly 25KB.
+		path := writeLines("exact.txt", "Line %04d\n", 2560)
+		if got := fullRead(path); got.Truncated {
+			t.Error("exactly 25KB should not be truncated (limit is >25KB)")
+		}
+	})
+
+	t.Run("just over 25KB is truncated", func(t *testing.T) {
+		// 2561 lines * 10 bytes = 25610 bytes, just over 25KB.
+		path := writeLines("over.txt", "Line %04d\n", 2561)
+		result := fullRead(path)
+		if !result.Truncated {
+			t.Error("file just over 25KB should be truncated")
+		}
+		if len(result.Content) > 2048 {
+			t.Errorf("truncated content too large: %d bytes", len(result.Content))
+		}
+		// The notice carries the file size and the returned amount.
+		if !strings.Contains(result.Content, "first 1024 of 25610 bytes shown") {
+			t.Errorf("notice should state 'first 1024 of 25610 bytes shown', got: %.200s", result.Content)
+		}
+	})
+
+	t.Run("huge single line is cut at the byte cap", func(t *testing.T) {
+		// A 30KB line with no newlines must be cut, not returned in full.
+		path := filepath.Join(t.TempDir(), "oneliner.txt")
+		if err := os.WriteFile(path, bytes.Repeat([]byte("a"), 30*1024), 0644); err != nil {
+			t.Fatalf("write fixture: %v", err)
+		}
+		result := fullRead(path)
+		if !result.Truncated {
+			t.Fatal("30KB single line should be truncated")
+		}
+		if len(result.Content) > 2048 {
+			t.Errorf("single-line truncated content too large: %d bytes", len(result.Content))
+		}
+		if !strings.HasPrefix(result.Content, "   1│") {
+			t.Errorf("content should start with the line-1 prefix, got: %.80s", result.Content)
+		}
+		if !strings.HasSuffix(result.Content, "file truncated") && !strings.Contains(result.Content, "file truncated") {
+			t.Errorf("expected truncation notice, got: %.200s", result.Content)
+		}
+	})
+
+	t.Run("explicit start_line is the escape hatch, not truncated", func(t *testing.T) {
+		// Passing start_line (even 1) opts out of truncation: range reads are
+		// the intended way to page through a large file.
+		path := writeLines("ranged.txt", "Line %04d\n", 3000)
+		params := json.RawMessage(`{"file_path": "` + filepath.ToSlash(path) + `", "start_line": 1}`)
+		res, err := tools.ReadFileHandler(session, params)
+		if err != nil {
+			t.Fatalf("ReadFileHandler failed: %v", err)
+		}
+		if result := res.(tools.ReadFileResult); result.Truncated {
+			t.Error("explicit start_line should not be truncated")
+		}
+	})
+
+	t.Run("small file full read is not truncated", func(t *testing.T) {
+		path := writeLines("small.txt", "Line %d\n", 5)
+		if got := fullRead(path); got.Truncated {
+			t.Error("small file should not be truncated")
+		}
+	})
+}
+
 func TestWriteFileHandler(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "gt-write-test-*")
 	if err != nil {

@@ -364,9 +364,21 @@ type StdioClient struct {
 	mu     sync.Mutex
 }
 
+// maxRequestLineBytes 是单行 JSON 请求的上限。
+// bufio.Scanner 默认上限 64KB，超过时 Scan 返回 false 且 err = token too long，
+// 表现为「请求无响应 + 进程直接退出」，调用方只看到 stdout EOF，原因完全不可见。
+// write_file 允许 100KB content、edit 允许长文本，正常请求行会超过 64KB，
+// 故放宽到 10MB（与 pytspclient 的 StreamReader limit 对齐）。
+const maxRequestLineBytes = 10 * 1024 * 1024
+
+// initialRequestBufBytes 是初始缓冲区大小，避免每行都重新分配 10MB。
+const initialRequestBufBytes = 64 * 1024
+
 func NewStdioClient(stdin io.Reader, stdout io.Writer) *StdioClient {
+	reader := bufio.NewScanner(stdin)
+	reader.Buffer(make([]byte, initialRequestBufBytes), maxRequestLineBytes)
 	return &StdioClient{
-		reader: bufio.NewScanner(stdin),
+		reader: reader,
 		writer: stdout,
 	}
 }
@@ -418,4 +430,9 @@ func (d *Dispatcher) ServeStdio(session Session, client *StdioClient) {
 	} else {
 		log.Printf("stdin closed (EOF), server exiting")
 	}
+
+	// stdin 消失后本进程无法再返回任何 tool 结果，残留的后台进程只会变成
+	// 调用方看不见的孤儿（容器里则 reparent 到 PID 1）。此处与信号处理路径
+	// 保持一致，统一清理。
+	GlobalProcessRegistry.KillAll()
 }

@@ -36,7 +36,17 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY_NAME="${BINARY_NAME}.exe"
           fi
+          # linux 产物需与 release 一致：完全静态链接（CGO_ENABLED=0），
+          # 避免测试产物与发布产物链接方式不同导致测了个不一样的二进制。
+          if [ "${{ matrix.goos }}" = "linux" ]; then
+            export CGO_ENABLED=0
+          fi
           go build -ldflags="-s -w" -o "${BINARY_NAME}" main.go
+          file "${BINARY_NAME}"
+          if [ "${{ matrix.goos }}" = "linux" ]; then
+            file "${BINARY_NAME}" | grep -q "statically linked" \
+              || { echo "::error::${BINARY_NAME} is not statically linked"; exit 1; }
+          fi
           echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
 
       - name: Upload artifact

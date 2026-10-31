@@ -39,6 +39,13 @@ sequenceDiagram
 go build -o gtsp src/main.go
 ```
 
+For Linux binaries (e.g. to be shipped into containers), build a **fully static** binary so it does not depend on the host image's glibc/musl:
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o gtsp-linux-amd64 src/main.go
+# or use the build script (linux targets default to CGO_ENABLED=0)
+./script/build.sh linux/amd64 linux/arm64
+```
+
 #### Running
 ```bash
 ./gtsp --mode stdio

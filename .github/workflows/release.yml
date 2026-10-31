@@ -34,7 +34,19 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY_NAME="${BINARY_NAME}.exe"
           fi
+          # linux 产物要能在任意容器镜像内作为主进程运行，必须是完全静态链接，
+          # 否则会绑定构建机 glibc 版本（如 ubuntu:20.04 / debian:bullseye 无法运行）。
+          # darwin/windows 保持默认 CGO_ENABLED，避免无谓的 net resolver 行为变化。
+          if [ "${{ matrix.goos }}" = "linux" ]; then
+            export CGO_ENABLED=0
+          fi
+          echo "CGO_ENABLED=${CGO_ENABLED:-<default>}"
           go build -ldflags="-s -w" -o "${BINARY_NAME}" main.go
+          file "${BINARY_NAME}"
+          if [ "${{ matrix.goos }}" = "linux" ]; then
+            file "${BINARY_NAME}" | grep -q "statically linked" \
+              || { echo "::error::${BINARY_NAME} is not statically linked"; exit 1; }
+          fi
           echo "BINARY_PATH=gtsp/src/${BINARY_NAME}" >> $GITHUB_ENV
           echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
 

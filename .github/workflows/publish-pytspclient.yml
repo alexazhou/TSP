@@ -19,7 +19,15 @@ jobs:
 
       - name: Build gtsp binary
         working-directory: gtsp/src
-        run: go build -ldflags="-s -w" -o ../dist/gtsp-linux-amd64 main.go
+        # CGO_ENABLED=0：发布到 PyPI 的 gtsp 会在不同发行版/容器镜像里执行，
+        # 动态链接会绑定构建机 glibc 版本（如 ubuntu:20.04 无法运行）。
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go build -ldflags="-s -w" -o ../dist/gtsp-linux-amd64 main.go
+          file ../dist/gtsp-linux-amd64
+          file ../dist/gtsp-linux-amd64 | grep -q "statically linked" \
+            || { echo "::error::gtsp-linux-amd64 is not statically linked"; exit 1; }
 
       - name: Test gtsp
         working-directory: gtsp

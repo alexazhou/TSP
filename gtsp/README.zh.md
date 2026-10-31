@@ -42,8 +42,9 @@ go build -o gtsp src/main.go
 Linux 产物（如需放进容器内运行）请编译为**完全静态链接**，避免依赖宿主镜像的 glibc/musl：
 ```bash
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o gtsp-linux-amd64 src/main.go
-# 或使用构建脚本（linux 目标默认 CGO_ENABLED=0）
+# 或使用构建脚本（linux 目标默认 CGO_ENABLED=0，默认带 -ldflags="-s -w"，与 CI 发布参数一致）
 ./script/build.sh linux/amd64 linux/arm64
+# 需要调试符号时关闭裁剪：STRIP=0 ./script/build.sh linux/amd64
 ```
 
 #### 运行

@@ -12,6 +12,14 @@
 #     glibc/musl，可放进任意镜像（Alpine / ubuntu:20.04 等）作为主进程运行；
 #   - 非 linux 目标沿用外部 CGO_ENABLED（未设置即 Go 默认）；
 #   - 如需强制 linux 动态链接做兼容性对比：CGO_ENABLED=1 ./script/build.sh linux/amd64
+#
+# 裁剪（与 CI 保持一致）:
+#   - 默认带 -ldflags="-s -w"（去掉符号表与 DWARF），与 .github/workflows/ 里
+#     release / publish-pytspclient / test-pytspclient 的发布参数**完全一致**，
+#     保证「本脚本产出 == 发布产物」，避免出现 3MB 差异的另一种二进制；
+#   - 需要源码级调试（delve / gdb 单步、看变量）时关闭：
+#       STRIP=0 ./script/build.sh linux/amd64
+#     panic 栈回溯不受裁剪影响（函数名 / 文件:行号 来自 pclntab，仍保留）。
 
 set -e
 
@@ -33,6 +41,24 @@ is_linux_target() {
     *) return 1 ;;
   esac
 }
+
+# 裁剪开关：默认开启（发布产物口径），STRIP=0 关闭
+STRIP="${STRIP:-1}"
+case "${STRIP}" in
+  1|true|TRUE|yes|YES) STRIP=1 ;;
+  0|false|FALSE|no|NO) STRIP=0 ;;
+  *)
+    echo "❌ 无效 STRIP 值: ${STRIP}（取 0/1）"
+    exit 1
+    ;;
+esac
+if [ "${STRIP}" -eq 1 ]; then
+  LDFLAGS="-s -w"
+  BUILD_ARGS=(-ldflags "${LDFLAGS}")
+else
+  LDFLAGS=""
+  BUILD_ARGS=()
+fi
 
 mkdir -p "${DIST_DIR}"
 FAILED=0
@@ -63,15 +89,15 @@ for TARGET in "${TARGETS[@]}"; do
     EFFECTIVE_CGO=0
   fi
 
-  echo "🔨 Building ${BINARY_NAME} for ${TARGET_GOOS}/${TARGET_GOARCH} (CGO_ENABLED=${EFFECTIVE_CGO:-default})..."
+  echo "🔨 Building ${BINARY_NAME} for ${TARGET_GOOS}/${TARGET_GOARCH} (CGO_ENABLED=${EFFECTIVE_CGO:-default}, strip=${STRIP})..."
   echo "   source: ${SOURCE_FILE}"
 
   if [ -n "${EFFECTIVE_CGO}" ]; then
     env GOOS="${TARGET_GOOS}" GOARCH="${TARGET_GOARCH}" CGO_ENABLED="${EFFECTIVE_CGO}" \
-      go build -v -o "${OUTPUT}" "${SOURCE_FILE}"
+      go build -v "${BUILD_ARGS[@]}" -o "${OUTPUT}" "${SOURCE_FILE}"
   else
     env GOOS="${TARGET_GOOS}" GOARCH="${TARGET_GOARCH}" \
-      go build -v -o "${OUTPUT}" "${SOURCE_FILE}"
+      go build -v "${BUILD_ARGS[@]}" -o "${OUTPUT}" "${SOURCE_FILE}"
   fi
 
   # linux 产物强制校验静态链接，防止回归成动态链接
@@ -81,6 +107,22 @@ for TARGET in "${TARGETS[@]}"; do
     else
       echo "❌ ${OUTPUT} 不是静态链接（检查 CGO_ENABLED 是否被外部设为 1）"
       file "${OUTPUT}"
+      FAILED=1
+      continue
+    fi
+  fi
+
+  # 裁剪校验：STRIP=1（发布口径）时必须带 stripped，防止 -s -w 被漏掉。
+  # 只对 linux 目标断言：发布产物只有 linux；且 macOS 的 file 不标 stripped（Mach-O）。
+  # 注意：未裁剪时 file 输出以 "not stripped" 结尾，也含子串 "stripped"，
+  # 所以必须显式排除 "not stripped"，否则断言恒真（实测踩过）。
+  if [ "${STRIP}" -eq 1 ] && is_linux_target "${TARGET}"; then
+    FILE_OUT="$(file "${OUTPUT}")"
+    if echo "${FILE_OUT}" | grep -q "stripped" && ! echo "${FILE_OUT}" | grep -q "not stripped"; then
+      echo "✅ 裁剪校验通过（stripped）"
+    else
+      echo "❌ ${OUTPUT} 未裁剪（release 口径必须带 -ldflags=\"-s -w\"）"
+      echo "${FILE_OUT}"
       FAILED=1
       continue
     fi
@@ -99,7 +141,7 @@ for TARGET in "${TARGETS[@]}"; do
 done
 
 if [ "${FAILED}" -ne 0 ]; then
-  echo "❌ 存在未通过静态链接校验的 linux 产物"
+  echo "❌ 存在未通过产物校验（静态链接 / 裁剪）的 linux 产物"
   exit 1
 fi
 

@@ -59,7 +59,7 @@ func printUsage() {
 	fmt.Println("  --allow-read=paths     Allow read tools restricted to comma-separated paths (requires --sandbox)")
 	fmt.Println("  --allow-write=paths    Allow write tools restricted to comma-separated paths (requires --sandbox)")
 	fmt.Println("  --max-image-size int   Max image file size in bytes for read_image (default 5242880, 0 = no limit)")
-	fmt.Println("  --log-path path        Directory to store log files (default ./logs)")
+	fmt.Println("  --log-path path        Directory to store log files (default <executable_dir>/logs)")
 	fmt.Println()
 }
 

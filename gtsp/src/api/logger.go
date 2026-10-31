@@ -22,7 +22,8 @@ var (
 func InitLogger(logPath string) error {
 	// 1. Create directory if not exists
 	if err := os.MkdirAll(logPath, 0755); err != nil {
-		return fmt.Errorf("failed to create log directory: %v", err)
+		// 报错里带上展开后的实际路径，便于定位「默认目录落在二进制旁边」这类问题
+		return fmt.Errorf("failed to create log directory: %v (log-path=%q; try --log-path /tmp/logs)", err, logPath)
 	}
 
 	// Store the log path for session-specific log files

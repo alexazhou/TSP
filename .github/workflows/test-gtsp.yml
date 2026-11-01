@@ -9,6 +9,10 @@ on:
     paths:
       - 'gtsp/**'
 
+  # 让 release.yml 能把它当作门控调用：tag 推送时先跑测试，
+  # 测试通过才允许 create-release 发版。见 release.yml 的 needs。
+  workflow_call:
+
 jobs:
   test:
     name: Test (${{ matrix.goos }}-${{ matrix.goarch }})

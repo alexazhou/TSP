@@ -6,6 +6,14 @@ on:
       - 'gtsp-v*'
 
 jobs:
+  # 测试门控：tag 推送时先跑测试，失败则 create-release 不会执行。
+  #
+  # 为什么需要它：在此之前 create-release 只 needs build-gtsp，而 build 只会
+  # 编译、不会跑测试 —— 于是「测试全红但版本照发」是可能的。实测 v0.4.18：
+  # Release 完成 04:49:28，windows job 04:49:47 失败，**版本比红灯早 19 秒发出**。
+  test-gtsp:
+    uses: ./.github/workflows/test-gtsp.yml
+
   build-gtsp:
     name: Build gtsp for ${{ matrix.goos }}-${{ matrix.goarch }}
     runs-on: ubuntu-latest
@@ -58,7 +66,8 @@ jobs:
 
   create-release:
     name: Create Release
-    needs: build-gtsp
+    # build 通过还不够，必须有测试门控：任何一个平台红，都不发版。
+    needs: [build-gtsp, test-gtsp]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -22,10 +22,9 @@ var (
 func InitLogger(logPath string) error {
 	// 1. Create directory if not exists
 	if err := os.MkdirAll(logPath, 0755); err != nil {
-		// 报错里带上展开后的实际路径，便于定位「默认目录落在二进制旁边」这类问题；
-		// 并给出前置条件：--read-only 会让整个根文件系统（含 /tmp）只读，此时仅换
-		// --log-path 无效，必须同时挂 tmpfs（详见任务 #107 的四镜像实测）。
-		return fmt.Errorf("failed to create log directory: %v (log-path=%q; try --log-path /tmp/logs; if the root filesystem is read-only (--read-only), also add --tmpfs /tmp)", err, logPath)
+		// 报错里带出实际失败的目录（MkdirAll 可能失败在祖先目录而非 logPath 本身）
+		// 与底层原因，调用方据此判断该换成哪个可写目录。
+		return fmt.Errorf("failed to create log directory: %v (directory is not writable; use --log-path to choose a writable directory)", err)
 	}
 
 	// Store the log path for session-specific log files

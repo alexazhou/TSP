@@ -1,0 +1,3 @@
+# busybox 必须按二进制原样入库：sha256 断言依赖内容逐字节不变，
+# 行尾转换或 LFS 指针替换都会让它失败。
+gtsp/third_party/busybox/busybox64u.exe binary -text -diff -merge

@@ -22,6 +22,9 @@ vendor/
 *.test
 *.out
 
+# 例外：Windows 版 gtsp 的 shell 依赖（busybox），随 release 一起分发，必须入库
+!gtsp/third_party/busybox/*.exe
+
 dist/
 gtsp/dist/
 

@@ -5,7 +5,6 @@ import (
 	"gTSP/src/pal"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -84,7 +83,10 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 		return nil, fmt.Errorf("invalid params: %v", err)
 	}
 
-	cmd := exec.Command("bash", "-c", p.Command)
+	cmd, err := pal.ShellCommand(p.Command)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare shell: %v", err)
+	}
 	pal.SetProcessGroup(cmd) // Create new process group for clean kill (platform-specific)
 	stdoutBuf := &api.ProcBuffer{}
 	stderrBuf := &api.ProcBuffer{}

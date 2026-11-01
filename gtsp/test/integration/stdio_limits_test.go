@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -234,6 +235,11 @@ func TestServeStdioKillsBackgroundProcessesOnEOF(t *testing.T) {
 	}
 }
 
+// isUnix 报告当前平台是否支持本测试依赖的进程组语义。
+//
+// 本文件没有 build tag（另外两个测试是平台无关的），所以必须在函数内判断：
+// Windows 上 kill 走 taskkill /T /F，依赖 PID 存在性，且 busybox 的进程树语义
+// 与 Unix 进程组不同，无法在此断言。
 func isUnix() bool {
-	return true // 该测试文件仅在 unix 构建中跑（依赖 sleep / 进程组）
+	return runtime.GOOS != "windows"
 }

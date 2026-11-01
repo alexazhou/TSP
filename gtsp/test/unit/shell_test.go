@@ -87,8 +87,11 @@ func TestExecuteBashHandler(t *testing.T) {
 	})
 
 	t.Run("truncation", func(t *testing.T) {
-		// Generate 2000 lines of output (exceeding 1000 lines limit)
-		params := json.RawMessage(`{"command": "for i in {1..2000}; do echo \"Line $i\"; done"}`)
+		// Generate 2000 lines of output (exceeding 1000 lines limit).
+		// 用 while 循环而非 `{1..2000}`：brace expansion 是 bash 扩展，非 POSIX，
+		// busybox ash / dash 都不展开，会原样输出 "{1..2000}" 只产生 1 行，
+		// 导致这个测试在 Windows（busybox）上静默失去断言意义。
+		params := json.RawMessage(`{"command": "i=1; while [ $i -le 2000 ]; do echo \"Line $i\"; i=$((i+1)); done"}`)
 		res, err := tools.ExecuteBashHandler(session, params)
 		if err != nil {
 			t.Fatal(err)

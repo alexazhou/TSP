@@ -52,6 +52,46 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o gtsp-linux-am
 ./gtsp --mode stdio
 ```
 
+#### Windows: the shell and `busybox64u.exe`
+
+Windows has no native `sh`/`bash`. The Windows build of gTSP therefore ships
+with **busybox-w32** as a companion binary, and `execute_bash` runs commands as
+**POSIX `sh`** (busybox `ash`) instead of bash.
+
+> **Release layout — put both files in the same directory:**
+> ```
+> gtsp-windows-amd64.exe
+> busybox64u.exe          <- required, no install needed
+> ```
+> If `busybox64u.exe` is missing, gTSP falls back to `bash` from `PATH`
+> (e.g. Git for Windows). It **refuses** the WSL stub
+> `C:\Windows\System32\bash.exe`: that one runs commands inside a Linux VM with
+> a separate filesystem, so `execute_bash` and `read_file`/`write_file` would
+> see two different worlds. To use WSL, run the **Linux build of gTSP inside WSL**
+> instead of the Windows build.
+
+Because the shell is POSIX `sh`, **bash-only syntax is not available**:
+`[[ ... ]]`, arrays (`arr=(a b c)`), brace expansion (`{1..10}`), `$'...'`.
+Use POSIX equivalents: `[ ... ]`, `$(seq 1 10)`, `while` loops.
+
+Guaranteed applets: busybox-w32 implements well over a hundred Unix commands, so
+`ls cat grep sed awk find sort uniq head tail wc tr cut mv cp rm mkdir touch date
+sleep printf echo test ps kill xargs which env` work **regardless of what the
+user has installed**. Windows CI asserts a core subset
+(`ls cat grep sed awk find sleep ps kill tr`) on every run; the full applet list
+is whatever `busybox64u.exe --list` reports for the shipped version.
+
+Two escape hatches:
+
+| Variable | Effect |
+| :--- | :--- |
+| `GTSP_BUSYBOX` | Absolute path to a specific busybox binary (overrides lookup) |
+| `GTSP_BUSYBOX_X=1` | Add busybox `-X`: stop converting `\` to `/`. Use when a native Windows program rejects forward-slash paths |
+
+Busybox-w32 prefers its **built-in applets over external programs** on `PATH`.
+To force an external program, set `BB_OVERRIDE_APPLETS` (space-separated), e.g.
+`BB_OVERRIDE_APPLETS=make`.
+
 #### Interaction Example (stdin)
 Send a JSON request to the program (newline required):
 ```json

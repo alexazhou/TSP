@@ -8,13 +8,21 @@
 
 ## 0. 一句话结论
 
-gtsp 目前硬编码 `bash`，Windows 上「关 stdin 后清理后台进程」是**失效**的（CI 已实测证实）。修法分两层，**必须一起做**：
+> **实施状态（2026-11-01）**：**第 1 层已实现并提交**（busybox 随 release 分发 + 平台分派 +
+> `isUnix()` 恒真修复 + Windows 端两条新测试）。**第 2 层（Job Object）暂不实施**，
+> 作为「若 `TestWindowsEOFKillsBackgroundTree` 在 CI 上失败」时的后备方案，设计保留在 §4。
 
-1. **壳层**：用 `busybox-w32` 让 Windows 上有一个自带命令集的 POSIX sh（论据见 §3）
-2. **清理**：用 **Job Object** 让子进程在内核层面跟随 gtsp 一起退出（论据见 §4）
+gtsp 原先硬编码 `bash`，Windows 上「关 stdin 后清理后台进程」是**失效**的（CI 已实测证实，§1）。修法分两层：
 
-**只做第 2 层不够**：如果 `bash` 解析到 `C:\Windows\System32\bash.exe`（WSL），进程跑在虚拟机里，Job Object 管不到（§2.3）。
-**只做第 1 层也不够**：现在 `KillAll()` 依赖「gtsp 有机会跑清理代码」，被 `kill -9` 时全泄漏（§4.1）。
+1. **壳层（已做）**：用 `busybox-w32` 让 Windows 上有一个自带命令集的 POSIX sh，并作为
+   独立文件随 release 分发（§3）
+2. **清理（后备）**：用 **Job Object** 让子进程在内核层面跟随 gtsp 一起退出（§4）。
+   引入 busybox 后 `ash` 在复合命令下作为父进程存活，`taskkill /T /F` 大概率够用，
+   故先不实施；由 Windows 端的新测试来判定是否真的够用。
+
+**只做第 1 层为什么可能够**：见 §1.2.1 的实测。
+**若第 1 层不够**：`KillAll()` 依赖「gtsp 有机会跑清理代码」，被 `kill -9` 时全泄漏（§1.4），
+那时必须上第 2 层。
 
 ---
 
@@ -46,15 +54,52 @@ taskkill warning: exit status 128
 
 → 「Windows 上没有 bash 所以启动失败」这个解释是**错的**。命令真跑起来了，坏的是清理。
 
-### 1.2 根因：只记了「传话筒」的 PID
+### 1.2 根因：清理按 PID，而 PID 在清理那一刻已失效
 
-- GitHub Actions 的 `windows-latest` runner **自带 `C:\Windows\System32\bash.exe`**（WSL 入口）
-- `exec.Command("bash", "-c", ...)` 解析到这个文件 → 它是个 **WSL 启动器**
-- 启动器把命令交给 WSL 虚拟机里的 Linux 内核执行，**自己立刻退出**
-- gtsp 记下的是**启动器的 Windows PID**，启动器一退出这个 PID 就没了
-- 真正的 `sleep 30` 在 Linux 内核里，它会继承 stdout 管道句柄 → `cmd.Wait()` 收不到 EOF → 永久阻塞 → 测试 5 秒后判失败
+> **勘误（2026-11-01，gtsp 测试复核后更正）**：本节初版写的是「`bash` 解析到 WSL 的
+> `System32\bash.exe`，它交给 Linux 虚拟机后立刻退出」。该描述**未经验证**，且与
+> CI 现场的若干细节不自洽（GitHub 托管 Windows runner 默认**不装 WSL**）。以下为
+> 复核后的、与日志一致的机制描述。
 
-**`taskkill /T /F` 为什么也不行**：`/T` 靠**父子关系**找树。父进程退出后 Windows 里的父子关系就断了，`/T` 立刻失能。这不是参数调优能解决的，是机制上限。
+CI 日志里能直接确认的三件事：
+
+| 观察 | 含义 |
+|---|---|
+| `TestExecuteBashHandler` 等 **122 个子测试 PASS**，`executable file not found` 出现 **0 次** | `bash` **启动成功**，命令真跑了 |
+| 失败行号是 `:233`（`KillAll` 后进程仍在跑），而非 `:208`（拿不到 background 结果） | 启动、注册、返回 `process_id` 全部正常 |
+| `ERROR: The process "7768" not found.` + `taskkill warning: exit status 128` 各出现 **2 次**，且都是同一个 PID | `KillAll` **确实被执行了**，但按 PID 的清理**打空了** |
+
+机制链：
+
+1. Windows 上 `pal.KillProcessGroup` 走 `taskkill /T /F /PID <pid>`，**以 PID 存在性为前提**；
+   PID 一旦失效，`/T` 也找不回整棵树。
+2. 而子进程仍活着，并且**继承了 stdout 管道写端**。
+3. `exec.Cmd.Wait()` 对非 `*os.File` 的 Stdout 会等内部 copy goroutine 读到 EOF；
+   只要写端还开着就**永不返回**。
+4. `Wait()` 不返回 → `waitChan` 不关闭 → `:233` 的 `case <-target.WaitChan()` 超时 5s → Fatal。
+5. Unix 走 `kill(-pgid, SIGKILL)`，**依赖进程组标识而非某个 PID 存活**，所以同样
+   「壳进程已退出」也能清干净 → Linux/macOS 双绿。
+
+> 「Windows 上 PID 为什么在清理时已经失效」的**最后一环尚未实证**（推断是
+> `C:\Program Files\Git\bin\bash.exe` 作为 wrapper 再拉起 `usr\bin\bash.exe`，
+> wrapper 先退出）。但**两条修法都不依赖这一环**：busybox 让 shell 作为父进程存活，
+> Job Object 则根本不按 PID 清理。
+
+### 1.2.1 引入 busybox 为何能改善这一点
+
+实测（Linux 容器内的同版本 busybox，行为与 w32 版一致）：
+
+```
+sh -c 'sleep 30'        → 只有 1 个进程（sh 被 exec 替换成 sleep）
+sh -c 'sleep 30; true'  → 2 个进程：sh(父) + sleep(子)
+```
+
+复合命令时 **ash 作为父进程存活**，所以 `KillAll` 执行的那一刻 PID 是有效的，
+`taskkill /T /F` 能沿父子关系命中整棵树。这正是 `busybox_windows_eof_test.go` 里
+`TestWindowsEOFKillsBackgroundTree` 断言的内容。
+
+**但这是「大概率可行」而非「机制保证」** —— 若该测试在 CI 上失败，说明按 PID 清理
+仍不可靠，那就必须上 Job Object（§4）。二者不是互斥方案，而是「先便宜后彻底」。
 
 ### 1.3 代码位置（v0.4.18）
 
@@ -194,50 +239,56 @@ busybox-w32 是原生 PE 程序，**读的就是 Windows 的 `PATH`**：
    正确写法：`cd /d/` 或 `cd D:/`。
    从 cmd 迁过来的用户必踩，**文档和错误提示都要写**。
 
-### 3.5 集成方式选择
+### 3.5 集成方式选择（已定：方案 B，随 release 分发）
 
-| 方式 | 说明 | 体积 | 可取性 |
-|---|---|---|---|
-| `//go:embed` 嵌入 **Windows 版** busybox | 运行时解压到临时目录再执行 | +1MB（仅 windows 构建） | ✅ **推荐** |
-| 要求用户自行安装 | 与 Git Bash 方案合并 | 0 | 备选 |
-| 打进源码（C 编译链） | 复杂度爆炸 | — | ❌ |
+> **决策记录（2026-11-01，Operator 拍板「方案 B」）**：不嵌入 gtsp 二进制，改为
+> **release 中附带独立文件 `busybox64u.exe` + `COPYING.busybox`**。理由见本节末尾的
+> GPL 分析。§4 的 Job Object 仍未实施，作为「按 PID 清理在 CI 上失败」时的后备。
 
-**平台隔离**：`//go:embed` 必须放在 `//go:build windows` 文件里，**否则 Linux/macOS 二进制也会白胖 1MB**。这是关键约束。
+| 方式 | 说明 | Windows 体积 | GPL 风险 | 取值 |
+|---|---|---|---|---|
+| **B（已采用）** | release 附带独立 exe，与 gtsp.exe 同目录 | **0** | ✅ **零**（教科书级 aggregate） | ✅ |
+| A | `//go:embed` 进 exe，运行时落盘 | +670 KB（未压缩）/ +411 KB（gzip） | ⚠️ 有争议（同一文件） | 备选 |
+| C | 不打包，检测不到给下载指引 | 0 | ✅ 零 | 备选 |
 
-**嵌入 gzip 压缩版**可降到约 700KB，但运行时需解压到 `%TEMP%` 并校验 —— 增加启动延迟与清理负担。**先用原始 embed 测体积，达标再优化。**
+**为什么 A 的体积估算曾写成 +1MB**：初稿没实测。现测值（同 go1.26.1 基线对比）：
+直接 embed `busybox64u.exe`（683,520 B）→ **+670.5 KB**；gzip 后 → **+411.0 KB**。
 
-### 3.6 shell 调用点的改动
+**为什么选 B**：GPLv2 的 `mere aggregation` 条款明确允许「两个独立程序在同一介质上
+一起分发」互不传染，FSF 官方 FAQ 也认可「fork + exec + 管道通信」= 聚合。而
+「编译进同一可执行文件」是最黑的灰色地带（FSH 立场是衍生作品）。
+→ **落盘/独立文件对 GPL 更友好，不是更糟。** 代价只是「单文件部署」变「双文件」。
 
-```go
-// src/tools/execute_bash.go:87 现状
-cmd := exec.Command("bash", "-c", p.Command)
-```
+**平台隔离不变**：即便将来切换回 A，`//go:embed` 也必须放在 `//go:build windows`
+文件里，否则 Linux/macOS 二进制也会白胖。
 
-改为平台分派：
-
-```go
-// src/pal/pal.go 增加（unix 返回 nil，表示用默认 bash）
-
-// src/pal/pal_windows.go
-func ShellCommand(script string) (*exec.Cmd, error) {
-    shPath, err := ensureBusybox()   // embed 解压 + 校验，返回可执行路径
-    if err != nil {
-        return nil, err
-    }
-    return exec.Command(shPath, "sh", "-c", script), nil
-}
-```
-
-`execute_bash.go` 侧：
+### 3.6 shell 调用点的改动（已实现）
 
 ```go
-cmd, err := pal.ShellCommand(p.Command)   // unix 实现返回 exec.Command("bash","-c",script)
+// src/tools/execute_bash.go（原第 87 行）
+//   cmd := exec.Command("bash", "-c", p.Command)
+cmd, err := pal.ShellCommand(p.Command)
 if err != nil {
     return nil, fmt.Errorf("failed to prepare shell: %v", err)
 }
+pal.SetProcessGroup(cmd)
 ```
 
-**契约变更（必须写进文档和 schema）**：`execute_bash` 的 `command` 描述从「bash command」改成「**POSIX sh command**」，并明确列出保证可用的 applet。
+平台分派（新增 `src/pal/shell_unix.go` / `src/pal/shell_windows.go`）：
+
+| 平台 | 行为 |
+|---|---|
+| Unix | `exec.LookPath("bash")` → `bash -c script`（与改动前完全一致，零回归） |
+| Windows | 按 `GTSP_BUSYBOX` → exe 同目录 → `PATH` → 回退 `bash`（拒绝 WSL）→ `busybox sh -c script` |
+
+**契约变更**：`execute_bash` 的 `command` 在 Windows 上是 **POSIX sh**（busybox ash），
+不支持 `[[ ]]`、数组、`{1..10}` 花括号展开、`$'...'`。已在 `README.md` 的
+「Windows: the shell and `busybox64u.exe`」一节写明，并列出保证可用的 applet。
+
+> **顺带修掉一处 bash 依赖**：`test/unit/shell_test.go` 的 truncation 用例原本用
+> `for i in {1..2000}`，brace expansion 在 ash 下不展开 → 只输出 1 行 →
+> 「输出被截断」的断言在 Windows 上会**静默失去意义**（不是失败，是空跑）。已改为
+> POSIX `while` 循环。
 
 ---
 
@@ -332,60 +383,72 @@ WSL2 是独立 VM，Linux 进程在另一个内核。Job 里只有 `bash.exe` �
 
 ## 5. 实施计划
 
-### 5.1 分阶段
+### 5.1 分阶段（含实施状态）
 
-| 阶段 | 内容 | 产出 | 风险 |
-|---|---|---|---|
-| **P0 止血** | `pal_windows.go` 上 Job Object + `ReleaseProcess`；`execute_bash.go` 加 2 行 | Windows 清理生效于 Git Bash 场景 | 低（有降级路径） |
-| **P0 测试修** | `test/integration/stdio_limits_test.go:237` 的 `isUnix()` 改 `runtime.GOOS != "windows"` | CI 立即变绿 | 无 |
-| **P1 集成 busybox** | `//go:embed` + `ensureBusybox()` + `ShellCommand` 平台分派 | Windows 无需外部 bash | 中（+1MB、GPL） |
-| **P1 契约更新** | schema 描述 / `execute_bash.md` / README 改成 POSIX sh + applet 清单 | 用户预期对齐 | 无 |
-| **P2 加固** | WSL 检测拒绝、`CREATE_SUSPENDED` 版本、`BB_OVERRIDE_APPLETS` 相关文档 | 消除静默错路径 | 低 |
+| 阶段 | 内容 | 状态 |
+|---|---|---|
+| **P0 测试修** | `isUnix()` → `runtime.GOOS != "windows"` | ✅ **已完成** |
+| **P1 集成 busybox** | `third_party/busybox/` + `pal.ShellCommand` 平台分派 + release 附带二进制 | ✅ **已完成** |
+| **P1 契约更新** | schema 描述 / README 改成 POSIX sh + applet 说明 | ✅ **已完成** |
+| **P1 测试护栏** | `TestBusyboxBinaryUsable`（sha256 + applet + POSIX 语义）、`TestWindowsEOFKillsBackgroundTree`（清理是否真生效）、`pal` 单测（WSL 检测 / GTSP_BUSYBOX 覆盖不静默失效） | ✅ **已完成** |
+| **P2 后备：Job Object** | 见 §4。**仅当 `TestWindowsEOFKillsBackgroundTree` 在 CI 上失败时启动** | ⏸ **未实施** |
+| **P2 加固** | `CREATE_SUSPENDED` 版本、`BB_OVERRIDE_APPLETS` 相关文档 | ⏸ 未实施 |
 
-**注意 P0 的顺序**：先让 CI 绿（那一行改），再上 Job Object。否则改动期间 CI 一直红，**看不出新改动是不是又引入了失败** —— 这正是「恒真断言」类问题的温床（见 §7）。
+**顺序说明**：先修 `isUnix()` 让 CI 恢复可读（否则改动期间一直红，看不出新改动是不是又
+引入了失败 —— 这正是「恒真断言」类问题的温床，见 §7）。Job Object 从「必做」降级为
+「由测试结果决定」，因为引入 busybox 改变了进程结构（§1.2.1）。
 
-### 5.2 `isUnix()` 那一行的说明
+### 5.2 `isUnix()` 那一行的说明（已修）
 
-`test/integration/stdio_limits_test.go:237`：
+`test/integration/stdio_limits_test.go`：
 
 ```go
+// 修前
 func isUnix() bool {
     return true // 该测试文件仅在 unix 构建中跑（依赖 sleep / 进程组）
 }
+
+// 修后
+func isUnix() bool {
+    return runtime.GOOS != "windows"
+}
 ```
 
-**这个注释是错的**：该文件**没有任何 build tag**，Windows 照样编译执行，`return true` 让 skip 永远不生效。
+**原来那句注释是错的**：该文件**没有任何 build tag**，Windows 照样编译执行，`return true`
+让 skip 永远不生效。
 - 为什么不用 build tag：文件里另外两个测试（64KB 上限、超限退出）**平台无关**，加 tag 会一并排除
 - 所以「函数内跳过」的思路是对的，**实现是错的**
 - **这是第 8 类「注释声称的约束没人兑现」**（§7）
 
-改法：`return runtime.GOOS != "windows"`，注释同时改成真话。
+同仓库其它 5 处早就是正确写法（`shell_test.go:396/405/418`、`sandbox_test.go:42`、
+`read_image_test.go:32`），说明不是「不会写」，是这一处写错。
 
-### 5.3 代码量估算
+### 5.3 实际代码量
 
-| 项 | 量 |
+| 项 | 实际 |
 |---|---|
-| `pal_windows.go`（Job Object） | ~90 行 |
-| `pal_unix.go`（no-op 桩） | +3 行 |
-| `execute_bash.go` | +4 行 |
-| `process.go` | +1 行 |
-| busybox embed + 解压校验 | ~80 行 |
-| 新增依赖 | **0** |
-| 二进制体积 | Linux/macOS **+0**；Windows **约 +1MB** |
-| Linux/macOS 回归风险 | **零**（`pal_unix.go` 只加 no-op） |
-| 工期 | P0 半天；P1 1~1.5 天；P2 1 天 |
+| `src/pal/shell_windows.go` | 130 行（含注释） |
+| `src/pal/shell_unix.go` | 19 行 |
+| `src/pal/shell_windows_test.go` | 82 行 |
+| `test/integration/busybox_windows_test.go` | 96 行 |
+| `test/integration/busybox_windows_eof_test.go` | 89 行 |
+| `execute_bash.go` | 净 +3 行（`exec.Command` → `pal.ShellCommand`） |
+| `third_party/busybox/` | `busybox64u.exe`（683,520 B）+ `COPYING` + `README.md` |
+| 新增 Go 依赖 | **0** |
+| 二进制体积 | Linux/macOS/darwin **+0 字节**（embed 方案已否决）；仓库 +683 KB |
+| Linux/macOS 回归风险 | **零**（新文件是 `//go:build !windows`；测试已全绿） |
 
-### 5.4 ⚠️ GPLv2 法务风险（阻塞项）
+### 5.4 GPLv2：已通过「方案 B」规避
 
-busybox 是 **GPLv2**。把它嵌进 gtsp 二进制**分发**，触发 GPL 的传染性义务。**存在争议点**：
-- 「同一可执行文件内嵌」通常视为**单一作品** → 整个 gtsp 需按 GPLv2 发布
-- 「独立 exe 运行时解压」可能被视为 **aggregate**（聚合）而非衍生 → 争议大
-- **这一条必须由法务/Operator 拍板，不由工程决定**
+busybox 是 **GPLv2**，gtsp 是 **MIT**。**不嵌入**二进制、**作为独立文件**随 release 分发，
+属于 GPLv2 `mere aggregation`（聚合），确认不触发传染：
 
-**若 GPL 不可接受**，替代路径：
-1. **Git Bash 方案**（§2.2）—— 零体积、零许可问题，代价是**要求用户安装**
-2. **纯 Go 解释器 + 命令翻译层**（`mvdan.cc/sh`，BSD-3）—— 但 `ls`/`sleep` 等仍需自己用 Go 实现（工作量远大于 1MB）
-3. **busybox 作为可选外部依赖** —— gtsp 不打包，检测到就提示下载
+- `busybox64u.exe` 是独立可执行文件，由 gtsp `fork + exec` 调用、经管道通信
+- FSF GPL FAQ 认可「exec + 管道」为聚合而非合并
+- release 同时提供 `COPYING.busybox`（GPLv2 全文），满足 GPLv2 §3 的源码/许可告知义务
+- 文件来源、sha256、更新步骤写在 `third_party/busybox/README.md`
+
+**若将来要改成嵌入（方案 A），这个结论失效**，必须重新做法务确认。
 
 ---
 

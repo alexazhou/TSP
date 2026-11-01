@@ -96,6 +96,17 @@ jobs:
           chmod +x gtsp-linux-* gtsp-darwin-* || true
           ls -la
 
+      - name: Add busybox for Windows
+        run: |
+          # gtsp 的 Windows 版不自带 shell，需要随 release 一起分发 busybox。
+          # 用「同一介质上的独立程序」形式发布（GPLv2 mere aggregation）：
+          # 不嵌入 gtsp 二进制，避免 MIT 与 GPLv2 的合并争议。
+          # Windows 用户解压后须把 busybox64u.exe 放在 gtsp-windows-amd64.exe 同目录。
+          cp gtsp/third_party/busybox/busybox64u.exe release/
+          cp gtsp/third_party/busybox/COPYING release/COPYING.busybox
+          sha256sum release/busybox64u.exe
+          ls -la release/
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:

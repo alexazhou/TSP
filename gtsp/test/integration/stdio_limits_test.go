@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"runtime"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -44,6 +45,35 @@ func runStdioSession(t *testing.T, dispatcher *api.Dispatcher, session api.Sessi
 func sendLine(w io.Writer, line []byte) error {
 	_, err := w.Write(append(line, '\n'))
 	return err
+}
+
+// waitForFile 轮询等待文件出现且非空。
+//
+// 后台命令是异步的：工具返回 process_id 时 shell 可能还没跑起来。
+// 直接关 stdin 会测到「启动前就被清理」，看起来通过但没测到进程树。
+func waitForFile(t *testing.T, path string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if st, err := os.Stat(path); err == nil && st.Size() > 0 {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("等待 %s 出现超时（%v）：后台命令可能根本没执行", path, timeout)
+}
+
+// jsonQuote 把 s 编码成 JSON 字符串字面量（含引号）。
+//
+// 直接拼 `"` + s + `"` 在 Windows 上会出问题：路径里的 `\` 是 JSON 转义符，
+// `C:\Users\...` 会让请求变成非法 JSON，测试直接挂在一个与主题无关的解析错误上。
+func jsonQuote(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		// json.Marshal 对 string 永不失败，这里只是防御。
+		return `""`
+	}
+	return string(b)
 }
 
 // TestStdioAcceptsRequestLargerThan64KB 覆盖回归：单行请求超过 bufio.Scanner
@@ -172,10 +202,17 @@ func TestStdioRejectsRequestLargerThanConfiguredMax(t *testing.T) {
 // ServeStdio 必须清理后台进程，否则它们变成调用方看不见的孤儿
 // （容器内会 reparent 到 PID 1 并最终变成僵尸）。
 // 信号路径本来就有 KillAll，这里对齐 EOF 路径。
+//
+// 本测试**在所有平台**执行。早先版本用 isUnix() 在 Windows 上 skip，
+// 而 Windows 恰恰是唯一真正会漏的地方 —— skip 掉的正是要测的平台。
+// 平台差异收在 pinTestShell / backgroundChildProbe / assertBackgroundChildGone 里。
 func TestServeStdioKillsBackgroundProcessesOnEOF(t *testing.T) {
-	if !isUnix() {
-		t.Skip("依赖进程组信号，仅在 Unix 上验证")
-	}
+	// Windows 上把 shell 钉到自带 busybox，否则会回退到 Git Bash，
+	// 绿了也不代表我们分发的那条路可用。
+	pinTestShell(t)
+
+	// 子进程 PID 落盘到临时文件，事后按 PID 精确验证「树」是否清干净。
+	pidFile := filepath.Join(t.TempDir(), "child.pid")
 
 	dispatcher := api.NewDispatcher()
 	tools.RegisterAll(dispatcher) // 需要真实的 execute_bash
@@ -192,7 +229,12 @@ func TestServeStdioKillsBackgroundProcessesOnEOF(t *testing.T) {
 		t.Fatalf("读取 initialize 响应失败: %v", err)
 	}
 
-	bgReq := []byte(`{"id":"1","method":"tool","tool":"execute_bash","input":{"command":"sleep 30; true","run_in_background":true}}`)
+	// 用 backgroundChildProbe 而不是直接写 `sleep 30; true`：前者把子进程
+	// PID 落盘，事后能精确确认孙辈是否也被清掉，而不仅仅是父进程退了没有。
+	probe := fmt.Sprintf(backgroundChildProbe, jsonQuote(pidFile))
+	bgReq := []byte(fmt.Sprintf(
+		`{"id":"1","method":"tool","tool":"execute_bash","input":{"command":%s,"run_in_background":true}}`,
+		jsonQuote(probe)))
 	if err := sendLine(inW, bgReq); err != nil {
 		t.Fatalf("写入 execute_bash 失败: %v", err)
 	}
@@ -212,11 +254,18 @@ func TestServeStdioKillsBackgroundProcessesOnEOF(t *testing.T) {
 		t.Fatalf("后台任务未返回 process_id: %s", string(line))
 	}
 
-	registered := api.GlobalProcessRegistry.List()
-	if len(registered) == 0 {
-		t.Fatal("后台任务未注册到 GlobalProcessRegistry")
+	// 按响应里的 process_id 精确取回，而不是 List() 取最后一个：
+	// GlobalProcessRegistry 是进程级单例，前面用例可能留下条目，
+	// 取「最后一个」在用例顺序变化时会指向错误的进程（假绿/假红）。
+	procID, _ := result["process_id"].(string)
+	target, found := api.GlobalProcessRegistry.Get(procID)
+	if !found {
+		t.Fatalf("registry 里找不到 process_id=%q（后台任务未注册）", procID)
 	}
-	target := registered[len(registered)-1]
+
+	// 必须先等子进程真的起来再关 stdin，否则测的是「进程还没启动就被清理」，
+	// 恰好绕开了「进程树」这件事。这里等 PID 文件出现（最多 10s）。
+	waitForFile(t, pidFile, 10*time.Second)
 
 	// 关闭 stdin → ServeStdio 走 EOF 路径
 	inW.Close()
@@ -233,13 +282,7 @@ func TestServeStdioKillsBackgroundProcessesOnEOF(t *testing.T) {
 		target.Kill()
 		t.Fatal("stdin EOF 后后台进程仍在运行（未被 KillAll 清理）")
 	}
-}
 
-// isUnix 报告当前平台是否支持本测试依赖的进程组语义。
-//
-// 本文件没有 build tag（另外两个测试是平台无关的），所以必须在函数内判断：
-// Windows 上 kill 走 taskkill /T /F，依赖 PID 存在性，且 busybox 的进程树语义
-// 与 Unix 进程组不同，无法在此断言。
-func isUnix() bool {
-	return runtime.GOOS != "windows"
+	// WaitChan 只说明被注册的那个进程退了，不代表子孙也清了。
+	assertBackgroundChildGone(t, pidFile)
 }

@@ -1,10 +1,10 @@
 package tools
 
 import (
-	"gTSP/src/api"
-	"gTSP/src/pal"
 	"encoding/json"
 	"fmt"
+	"gTSP/src/api"
+	"gTSP/src/pal"
 	"strings"
 	"time"
 )
@@ -93,9 +93,9 @@ func executeBashDescription() string {
 		"- Shell: " + pal.ShellDescription() + "\n" +
 		"- Paths: " + pal.PathNotes() + "\n" +
 		"- Three execution modes:\n" +
-		"  1. Synchronous with timeout (default): command runs up to task_timeout seconds (default 180s); if still running, the action taken depends on 'timeout_action'\n" +
-		"  2. Synchronous no timeout: use run_in_background:true to start immediately in background\n" +
-		"  3. Background (run_in_background:true): starts immediately in background, returns process_id right away\n" +
+		"  1. Synchronous, kill on timeout (timeout_action: \"kill\"): waits up to task_timeout seconds (default 180s); returns the result if the command finishes, otherwise kills the process group and returns partial output\n" +
+		"  2. Synchronous, background on timeout (timeout_action: \"background\", default): waits up to task_timeout seconds (default 180s); returns the result if the command finishes, otherwise promotes the still-running process to background and returns a process_id\n" +
+		"  3. Asynchronous (run_in_background: true): starts the command immediately in the background and returns a process_id without waiting (task_timeout and timeout_action are ignored)\n" +
 		"- Use process_output to poll or wait for background process completion\n" +
 		"- Automatically truncates large outputs to protect context window\n" +
 		"- Use this tool when you need to run shell commands, build scripts, run tests, or perform other system-level operations"
@@ -142,7 +142,7 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 		}, nil
 	}
 
-	// Determine timeout (default 60s)
+	// Determine timeout (default 180s)
 	timeout := p.TaskTimeout
 	if timeout <= 0 {
 		timeout = defaultTaskTimeout

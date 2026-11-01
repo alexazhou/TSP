@@ -62,6 +62,30 @@ func TestExecuteBashDescriptionKeepsExecutionModes(t *testing.T) {
 	}
 }
 
+// TestExecuteBashDescriptionHasThreeRealModes 钉住执行模式列表与实现一致。
+//
+// 旧文案写的是「Synchronous no timeout: use run_in_background:true ...」：
+// 既声称存在一个永不超时的同步模式（实际最长只等 task_timeout），又把异步
+// 模式写了两遍（模式 2 与 3 是同一个参数）。这里按实现的三条路径断言：
+// 同步+超时 kill、同步+超时转后台、直接异步。
+func TestExecuteBashDescriptionHasThreeRealModes(t *testing.T) {
+	desc := ExecuteBashSchema.Description
+
+	if strings.Contains(desc, "Synchronous no timeout") {
+		t.Errorf("工具描述再次出现不存在的 'Synchronous no timeout' 模式:\n%s", desc)
+	}
+	for _, want := range []string{
+		"Three execution modes",
+		`timeout_action: "kill"`,
+		`timeout_action: "background", default`,
+		"run_in_background: true",
+	} {
+		if !strings.Contains(desc, want) {
+			t.Errorf("工具描述缺少模式说明 %q:\n%s", want, desc)
+		}
+	}
+}
+
 // commandParamDescription 从 schema 里取出 command 参数的 description。
 func commandParamDescription(t *testing.T) string {
 	t.Helper()

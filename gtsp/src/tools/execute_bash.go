@@ -38,14 +38,17 @@ type BashBackgroundResult struct {
 
 var ExecuteBashSchema = api.ToolDefinition{
 	Name:        "execute_bash",
-	Description: "- Executes a system command in a controlled environment\n- Three execution modes:\n  1. Synchronous with timeout (default): command runs up to task_timeout seconds (default 180s); if still running, the action taken depends on 'timeout_action'\n  2. Synchronous no timeout: use run_in_background:true to start immediately in background\n  3. Background (run_in_background:true): starts immediately in background, returns process_id right away\n- Use process_output to poll or wait for background process completion\n- Automatically truncates large outputs to protect context window\n- Use this tool when you need to run shell commands, build scripts, run tests, or perform other system-level operations",
+	Description: executeBashDescription(),
 	InputSchema: map[string]interface{}{
 		"$schema": "https://json-schema.org/draft/2020-12/schema",
 		"type":    "object",
 		"properties": map[string]interface{}{
 			"command": map[string]interface{}{
-				"type":        "string",
-				"description": "The exact bash command to execute.",
+				"type": "string",
+				// 这里刻意不写死 "bash"：Windows 上实际是 busybox ash（POSIX sh），
+				// 按 bash 习惯写 [[ ]]、{1..10}、数组会静默不生效（ash 把 {1..10}
+				// 当字面量原样输出，不报错）。写错 shell 名称等于给出错误契约。
+				"description": ShellCommandDescription(),
 			},
 			"task_timeout": map[string]interface{}{
 				"type":        "integer",
@@ -71,10 +74,32 @@ var ExecuteBashSchema = api.ToolDefinition{
 }
 
 const (
-	defaultTaskTimeout = 180 // Default timeout in seconds
+	defaultTaskTimeout = 180       // Default timeout in seconds
 	maxOutputBytes     = 50 * 1024 // 50KB limit as per spec
 	maxOutputLines     = 1000      // Line limit for safety
 )
+
+// executeBashDescription 拼出工具描述。
+//
+// shell 与路径两段由 pal 提供（按平台编译）：描述必须与真实行为一致，
+// 而 Windows 上真实行为与其他平台不同。写死一份描述就等于对其中一个平台撒谎。
+func executeBashDescription() string {
+	return "- Executes a shell command in a controlled environment\n" +
+		"- Shell: " + pal.ShellDescription() + "\n" +
+		"- Paths: " + pal.PathNotes() + "\n" +
+		"- Three execution modes:\n" +
+		"  1. Synchronous with timeout (default): command runs up to task_timeout seconds (default 180s); if still running, the action taken depends on 'timeout_action'\n" +
+		"  2. Synchronous no timeout: use run_in_background:true to start immediately in background\n" +
+		"  3. Background (run_in_background:true): starts immediately in background, returns process_id right away\n" +
+		"- Use process_output to poll or wait for background process completion\n" +
+		"- Automatically truncates large outputs to protect context window\n" +
+		"- Use this tool when you need to run shell commands, build scripts, run tests, or perform other system-level operations"
+}
+
+// ShellCommandDescription 是 command 参数的说明。
+func ShellCommandDescription() string {
+	return "The exact shell command to execute. " + pal.ShellDescription() + "."
+}
 
 // ExecuteBashHandler implements execute_bash with background promotion support
 func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{}, error) {

@@ -1,8 +1,10 @@
 # Windows 平台：集成 busybox 与子进程自动退出
 
-> **状态**：设计文档，**尚未实现**。文中 Win32 API 签名、busybox-w32 行为均出自官方文档，**未经本机实测**；所有「待实测」条目在达成前不得当作结论引用。
-> **适用版本**：gtsp v0.4.18 及之后
-> **撰写日期**：2026-11-01
+> **状态**：方案 B（release 附带独立 busybox）**已实现并发布**（gtsp v0.4.19）。
+> Windows CI 三个平台全绿，进程树清理问题经实测已随 busybox 解决，Job Object **未实施**（作为后备方案保留在 §4）。
+> 文中路径行为、`-X` 效果等条目均为 GitHub 托管 `windows-latest` runner 上的**实测**结果（见 §3.4 与 `test/integration/busybox_windows_probe_test.go`）。
+> **适用版本**：gtsp **v0.4.19 及之后**（v0.4.18 不含 busybox，其 Windows 版 `execute_bash` 无可用 shell）
+> **撰写日期**：2026-11-01（2026-11-01 更新为实测结论）
 
 ---
 

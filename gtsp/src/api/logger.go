@@ -23,8 +23,18 @@ func InitLogger(logPath string) error {
 	// 1. Create directory if not exists
 	if err := os.MkdirAll(logPath, 0755); err != nil {
 		// 报错里带出实际失败的目录（MkdirAll 可能失败在祖先目录而非 logPath 本身）
-		// 与底层原因，调用方据此判断该换成哪个可写目录。
-		return fmt.Errorf("failed to create log directory: %v (directory is not writable; use --log-path to choose a writable directory)", err)
+		// 与底层原因。
+		//
+		// 提示必须给出**在只读根文件系统下也真的可执行**的解法。旧文案只写了
+		// 「use --log-path to choose a writable directory」—— 但 gtsp 以
+		// `--read-only` 运行时（镜像内常见）默认 logPath 是 /p/logs，根文件系统
+		// 只读，用户即便照着改 --log-path 指向另一个镜像内路径也照样 EROFS。
+		// 实测（v0.4.18）只有指向 tmpfs 挂载点才成立，所以文案要点明：
+		// 需要一个可写目录，若是 --read-only，还要额外挂 tmpfs（docker run 参数）。
+		return fmt.Errorf(
+			"failed to create log directory %q: %v "+
+				"(choose a writable --log-path; if the root filesystem is read-only "+
+				"(--read-only), also add --tmpfs /tmp)", logPath, err)
 	}
 
 	// Store the log path for session-specific log files
@@ -38,7 +48,13 @@ func InitLogger(logPath string) error {
 	// 2. Open log file (append mode, create if not exists)
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open log file: %v", err)
+		// 这里同样是「目录存在但不可写」的场景（MkdirAll 成功、OpenFile 失败），
+		// 文案要与上面保持一致，否则用户在只读根文件系统下会得到两条不同的、
+		// 都不够可执行的提示。
+		return fmt.Errorf(
+			"failed to open log file %q: %v "+
+				"(choose a writable --log-path; if the root filesystem is read-only "+
+				"(--read-only), also add --tmpfs /tmp)", logFile, err)
 	}
 
 	// Close any previously opened global log file (re-init / test reuse), so the

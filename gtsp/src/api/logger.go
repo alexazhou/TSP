@@ -25,12 +25,14 @@ func InitLogger(logPath string) error {
 		// 报错里带出实际失败的目录（MkdirAll 可能失败在祖先目录而非 logPath 本身）
 		// 与底层原因。
 		//
-		// 提示必须给出**在只读根文件系统下也真的可执行**的解法。旧文案只写了
-		// 「use --log-path to choose a writable directory」—— 但 gtsp 以
-		// `--read-only` 运行时（镜像内常见）默认 logPath 是 /p/logs，根文件系统
-		// 只读，用户即便照着改 --log-path 指向另一个镜像内路径也照样 EROFS。
-		// 实测（v0.4.18）只有指向 tmpfs 挂载点才成立，所以文案要点明：
-		// 需要一个可写目录，若是 --read-only，还要额外挂 tmpfs（docker run 参数）。
+		// 提示必须给出**在只读文件系统下也真的可执行**的解法。旧文案只写了
+		// 「use --log-path to choose a writable directory」—— 文件系统只读时，
+		// 用户即便把 --log-path 指向镜像内的另一个路径也照样 EROFS。实测
+		// （v0.4.18）只有挂载可写文件系统才成立，所以文案要点明这一前置条件。
+		//
+		// gtsp 的默认 logPath 由 main.go 算出：<可执行文件所在目录>/logs
+		// （filepath.Join(filepath.Dir(os.Executable()), "logs")），不是固定的 /logs。
+		// --read-only / --tmpfs 是 docker run 的参数，不是 gtsp 自己的 flag。
 		return fmt.Errorf(
 			"failed to create log directory %q: %v "+
 				"(choose a writable --log-path; if the root filesystem is read-only "+

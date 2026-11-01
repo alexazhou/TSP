@@ -5,6 +5,7 @@ package pal
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -94,6 +95,24 @@ func ResolveShell() (string, error) {
 	return "", errors.New(
 		"no shell available: busybox not found next to gtsp.exe and not in PATH, " +
 			"and no usable bash found. Place busybox64u.exe in the same directory as gtsp.exe")
+}
+
+// LogShellResolution 记录 execute_bash 实际会使用的 shell，以及它是随包
+// 分发的 busybox 还是回退的 bash（通常是 Git for Windows）。
+//
+// 在启动时调用一次。不做缓存，ResolveShell 仍按每次调用重新解析；
+// 日志只用于让「命令到底在哪个 shell 里跑」在日志里可查。
+func LogShellResolution() {
+	shell, err := ResolveShell()
+	if err != nil {
+		log.Printf("execute_bash: shell resolution failed: %v", err)
+		return
+	}
+	kind := "bash fallback"
+	if IsBusybox(shell) {
+		kind = "busybox"
+	}
+	log.Printf("execute_bash: shell resolved: %s (%s)", shell, kind)
 }
 
 // IsBusybox 判断路径是否是 busybox（按文件名前缀）。

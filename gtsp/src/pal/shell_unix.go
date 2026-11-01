@@ -4,6 +4,7 @@ package pal
 
 import (
 	"fmt"
+	"log"
 	"os/exec"
 )
 
@@ -17,4 +18,17 @@ func ShellCommand(script string) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("bash not found in PATH: %v", err)
 	}
 	return exec.Command(path, "-c", script), nil
+}
+
+// LogShellResolution 记录 execute_bash 实际会使用的 shell。
+//
+// Unix 上一律是 PATH 里的 bash；与 Windows 保持对称，日志格式一致，
+// 便于按平台排查「命令到底在哪个 shell 里跑」。
+func LogShellResolution() {
+	path, err := exec.LookPath("bash")
+	if err != nil {
+		log.Printf("execute_bash: bash not found in PATH: %v", err)
+		return
+	}
+	log.Printf("execute_bash: shell resolved: %s (bash)", path)
 }

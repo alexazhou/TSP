@@ -2,6 +2,7 @@ package main
 
 import (
 	"gTSP/src/api"
+	"gTSP/src/pal"
 	"gTSP/src/tools"
 	"encoding/json"
 	"flag"
@@ -179,6 +180,9 @@ func main() {
 		handleSchemaCommand(dispatcher, outputFile)
 		os.Exit(0)
 	}
+
+	// Log the shell execute_bash will use (Windows: bundled busybox or bash fallback).
+	pal.LogShellResolution()
 
 	// 4. Signal handling: clean up child processes on exit
 	sigChan := make(chan os.Signal, 1)

@@ -4,6 +4,7 @@ package pal
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -94,25 +95,34 @@ func TestResolveShellRejectsMissingEnv(t *testing.T) {
 // 而 -X 的位置有硬约束：它必须出现在 `sh` **之后**、`-c` **之前**。
 // 写成 `busybox -X sh -c ...` 会让 busybox 把 -X 当 applet 名 → 127。
 // 这里直接检查构造出的 argv，不依赖能否真正执行。
+//
+// 注意：GTSP_BUSYBOX 必须指向一个**文件名以 busybox 开头**的路径，
+// 否则 IsBusybox() 为 false，ShellCommand 走非 busybox 分支、不会插入 `sh`
+// applet，断言就测不到 -X。用 os.Executable()（pal.test.exe）会踩这个坑。
 func TestShellCommandXFlag(t *testing.T) {
-	self, err := os.Executable()
-	if err != nil {
-		t.Skipf("os.Executable 不可用: %v", err)
+	fake := filepath.Join(t.TempDir(), "busybox64u.exe")
+	if err := os.WriteFile(fake, []byte("not a real binary"), 0o644); err != nil {
+		t.Fatalf("创建假 busybox 失败: %v", err)
 	}
-	t.Setenv("GTSP_BUSYBOX", self)
+	t.Setenv("GTSP_BUSYBOX", fake)
+
+	// 先确认前提成立：这个路径必须被判定为 busybox，否则下面的断言毫无意义。
+	if !IsBusybox(fake) {
+		t.Fatalf("IsBusybox(%q) = false，-X 断言将测不到（ShellCommand 走非 busybox 分支）", fake)
+	}
 
 	cases := []struct {
 		name string
 		env  string
 		want []string // 期望的 argv（含程序名）
 	}{
-		{"x_off", "", []string{self, "sh", "-c", "echo hi"}},
-		{"x_on_1", "1", []string{self, "sh", "-X", "-c", "echo hi"}},
-		{"x_on_true", "true", []string{self, "sh", "-X", "-c", "echo hi"}},
-		{"x_on_yes", "yes", []string{self, "sh", "-X", "-c", "echo hi"}},
-		{"x_on_spaces", "  1  ", []string{self, "sh", "-X", "-c", "echo hi"}},
-		{"x_off_zero", "0", []string{self, "sh", "-c", "echo hi"}},
-		{"x_off_garbage", "maybe", []string{self, "sh", "-c", "echo hi"}},
+		{"x_off", "", []string{fake, "sh", "-c", "echo hi"}},
+		{"x_on_1", "1", []string{fake, "sh", "-X", "-c", "echo hi"}},
+		{"x_on_true", "true", []string{fake, "sh", "-X", "-c", "echo hi"}},
+		{"x_on_yes", "yes", []string{fake, "sh", "-X", "-c", "echo hi"}},
+		{"x_on_spaces", "  1  ", []string{fake, "sh", "-X", "-c", "echo hi"}},
+		{"x_off_zero", "0", []string{fake, "sh", "-c", "echo hi"}},
+		{"x_off_garbage", "maybe", []string{fake, "sh", "-c", "echo hi"}},
 	}
 
 	for _, tc := range cases {

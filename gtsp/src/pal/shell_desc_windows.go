@@ -14,22 +14,25 @@ func ShellDescription() string {
 
 // PathNotes 供工具描述使用：说明 cwd 与路径写法。
 //
-// 只写有依据的内容：
-//   - cwd 继承自 gtsp 进程（execute_bash 不设 cmd.Dir，见 execute_bash.go）；
+// 每条都有实测依据（test/integration/busybox_windows_probe_test.go 在
+// GitHub 托管 windows-latest 上执行，run 41281531655）：
+//   - cwd 继承自 gtsp 进程（execute_bash 不设 cmd.Dir）；
 //   - busybox 是原生 Windows 程序，与 read_file/write_file 同一套 C:\ 路径空间；
-//   - 反斜杠默认被转成正斜杠、`-X` 可关闭 —— 出自 busybox-w32 官方 README；
-//   - 绝对路径官方写法是 `c:/path`。
+//   - `c:/path` 可用，`/c/path` 确定不可用（rc=2 can't cd）—— 这条最关键，
+//     因为社区文章普遍在传 `/c/`，照着写会直接失败；
+//   - `cd C:`（只有盘符）实测可用，不是「被当程序执行」。
 //
-// 刻意不写 `/c/path` 这种 Cygwin/MSYS 形式：官方 README 未列出，社区文章说法
-// 互相矛盾，实测（test/integration/busybox_windows_probe_test.go）结论出来前
-// 不写进契约 —— 写错了比不写更糟。
+// 刻意不把 `-X` 说成「关掉它路径就对了」：实测 `sh -X -c 'printf ... C:\Windows'`
+// 与不加 -X 输出一致，因为反斜杠在进 busybox 之前就被 shell 当转义吃掉了。
+// 把它写成通用解药会让用户按错误方向排查。
 func PathNotes() string {
 	return "Working directory: the directory gtsp was started from, or --workdir if given " +
 		"(execute_bash does not change it per call).\n" +
 		"Paths: this is a native Windows process, so it sees the same filesystem and the same " +
 		"`C:\\...` paths as read_file/write_file.\n" +
-		" - Prefer forward slashes: `c:/work/file.txt`.\n" +
-		" - Backslashes in commands are converted to forward slashes by default; " +
-		"set GTSP_BUSYBOX_X=1 to keep them literal if a native Windows program rejects `c:/` form.\n" +
-		" - To switch drives use `cd d:/`, not `d:`."
+		" - Use drive-letter form with forward slashes: `c:/work/file.txt`.\n" +
+		" - Do NOT use the Cygwin-style `/c/work` form: it fails (no such file or directory).\n" +
+		" - Unquoted backslashes are eaten by the shell (`C:\\Windows` becomes `C:Windows`), " +
+		"so quote them or use forward slashes.\n" +
+		" - To switch drives use `cd d:/`."
 }

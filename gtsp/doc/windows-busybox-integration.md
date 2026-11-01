@@ -227,17 +227,39 @@ busybox-w32 是原生 PE 程序，**读的就是 Windows 的 `PATH`**：
 - **代价**：用户以为跑的是 Git 的 `ls`，实际是 busybox 的 `ls`；**选项支持度、输出格式可能有差异**
 - **想抢回外部程序**：设环境变量 `BB_OVERRIDE_APPLETS="ls grep"`（空格分隔的 applet 名列表）
 
-### 3.4 两个必须知道的路径坑
+### 3.4 路径行为（**已实测，2026-11-01，windows-latest / busybox64u**）
 
-1. **反斜杠会被转成正斜杠**
-   busybox 默认把 `\` 换成 `/`。**有些 Windows 程序不接受正斜杠路径参数** → 表现为「程序跑了但说找不到文件」。
-   官方解法：启动时加 **`-X`** 关掉转换。
-   **但这会让 shell 里的路径变成反斜杠**，`cd /c/foo` 之类可能反过来出问题。**必须实测**（§6 T4）。
+> 本节数据来自 `test/integration/busybox_windows_probe_test.go` 在 GitHub 托管
+> `windows-latest` runner 上的真实执行结果（run 41281531655）。此前本节的三条说法
+> **全部被实测推翻或修正**，已按下表改写 —— 教训：路径行为不能靠社区文章推断。
 
-2. **`D:` 不认**
-   在 `cmd.exe` 里 `D:` 是切盘；在 POSIX shell 里会被解析成「**执行名为 `D:` 的程序**」→ 权限拒绝。
-   正确写法：`cd /d/` 或 `cd D:/`。
-   从 cmd 迁过来的用户必踩，**文档和错误提示都要写**。
+| 写法 | 实测结果 | 结论 |
+|---|---|---|
+| `cd /c/` | rc=2 `can't cd to /c/: No such file or directory` | ❌ **不支持**（Cygwin/MSYS 形式在 busybox-w32 上无效） |
+| `cd c:/` | rc=0，`pwd` → `C:/` | ✅ 可用 |
+| `cd c:\` | rc=0，`pwd` → `C:/` | ✅ 可用 |
+| `cd C:`（只有盘符） | rc=0，`pwd` → `C:/` | ✅ **可用**（旧文说会被当程序执行，错） |
+| `test -d 'c:/Windows'` | `YES` | ✅ 绝对路径 A 形式可用 |
+| `test -d '/c/Windows'` | `NO` | ❌ 同上 |
+| `test -d '//c/Windows'` | `NO` | ❌ UNC 形式也不接受盘符 |
+| `pwd` | `D:/a/TSP/TSP/gtsp/test/integration` | 输出即 **`D:/...` 正斜杠形式**，盘符保留 |
+| `echo 'C:\Windows\System32'` | `C:\Windows\System32`（原样） | 引号内不转换 |
+| `printf '%s\n' C:\Windows\System32`（不加引号） | `C:WindowsSystem32` | ⚠️ **反斜杠被 shell 当转义吃掉了**，不是 busybox 转换的问题 |
+| `cygpath` 是否可用 | `YES` | 可用（但无需用它，见下） |
+| `realpath c:/Windows` | `C:/Windows` | 正斜杠形式全程贯通 |
+| `$TMPDIR` / `$TEMP` / `$TMP` | `TMPDIR` 空；`TEMP`/`TMP` = `C:/Users/RUNNER~1/AppData/Local/Temp` | ⚠️ 用 `$TMPDIR` 会拿到空串 |
+
+**唯一需要记住的三条**：
+
+1. **用 `c:/path`，不要用 `/c/path`**。前者可用，后者确定不可用（rc=2）。
+2. **不加引号的反斜杠会被 shell 吞掉**（`C:\Windows` → `C:WindowsSystem32`）。
+   这跟 busybox 的 `-X` 无关，是 shell 的转义规则。要么用正斜杠，要么加引号。
+3. **`-X` 的真实效果有限**：实测 `sh -X -c 'printf "%s\n" C:\Windows\System32'`
+   与不加 `-X` 输出完全一致（都是 `C:WindowsSystem32`），因为反斜杠在进 busybox
+   之前就被 shell 处理掉了。**`-X` 只在「反斜杠作为字面量传进参数」时才起作用**，
+   不是「关掉它路径就对了」的开关。文档与工具描述都不应承诺它是通用解药。
+
+**结论性建议**：工具描述里只承诺 `c:/path`。不要提 `/c/` —— 它会失败。
 
 ### 3.5 集成方式选择（已定：方案 B，随 release 分发）
 

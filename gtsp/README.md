@@ -86,7 +86,18 @@ Two escape hatches:
 | Variable | Effect |
 | :--- | :--- |
 | `GTSP_BUSYBOX` | Absolute path to a specific busybox binary (overrides lookup) |
-| `GTSP_BUSYBOX_X=1` | Add busybox `-X`: stop converting `\` to `/`. Use when a native Windows program rejects forward-slash paths |
+| `GTSP_BUSYBOX_X=1` | Add busybox `-X`: stop busybox from converting backslashes to forward slashes. Only matters when a backslash reaches busybox as a literal argument — it does **not** rescue `cd \some\path`, because the shell consumes the backslashes first |
+
+**Path rules (measured on windows-latest, see `busybox_windows_probe_test.go`):**
+
+| Write this | Result |
+| :--- | :--- |
+| `c:/work/file.txt` | ✅ works, and `pwd` also reports `c:/...` style |
+| `/c/work/file.txt` | ❌ `can't cd to /c/: No such file or directory` — the Cygwin/MSYS form does **not** work here |
+| `cd c:/`, `cd c:\`, `cd C:` | ✅ all work |
+| `C:\Windows` unquoted | ⚠️ becomes `C:WindowsSystem32`-style — the **shell** eats the backslashes. Quote it or use forward slashes |
+
+Do not rely on `cd /d/`. Use `cd d:/`.
 
 Busybox-w32 prefers its **built-in applets over external programs** on `PATH`.
 To force an external program, set `BB_OVERRIDE_APPLETS` (space-separated), e.g.

@@ -14,16 +14,16 @@ import (
 // 把 `bash` 也算数 —— 而在 Windows 上写 `bash` 恰恰是这次要修的假话。
 func TestShellDescriptionIsAshOnWindows(t *testing.T) {
 	desc := ShellDescription()
+
+	// 用共享判据（定义在 desc_check_test.go，跨平台可测）。
+	// 注意这里曾用 strings.Contains(desc, "ash") 直接判断，而 `bash` 里就含
+	// `ash` —— 于是「busybox `bash`」这种恰恰要禁止的描述会通过。
+	// 判据已抽成纯函数，并在所有平台上穷举验证过（TestDescribesAshPredicate）。
+	if !describesAsh(desc) {
+		t.Errorf("Windows 的 shell 说明应点明 busybox ash 且不得声称 bash，实际: %q", desc)
+	}
+
 	lower := strings.ToLower(desc)
-
-	if !strings.Contains(desc, "ash") || !strings.Contains(lower, "busybox") {
-		t.Errorf("Windows 的 shell 说明应点明 busybox ash，实际: %q", desc)
-	}
-
-	// 「not bash」是明确声明，不视为错误；但只要出现「就是 bash」的肯定说法就有问题。
-	if strings.Contains(lower, "by `bash") || strings.Contains(lower, "bash -c") {
-		t.Errorf("Windows 的 shell 说明不该声称用 bash（实际是 ash）: %q", desc)
-	}
 
 	for _, w := range []string{"cmd.exe", "powershell", "wsl"} {
 		if strings.Contains(lower, w) {

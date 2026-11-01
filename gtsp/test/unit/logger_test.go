@@ -19,26 +19,10 @@ func mentionsPath(msg, path string) bool {
 	return strings.Contains(msg, path) || strings.Contains(msg, strconv.Quote(path))
 }
 
-// TestInitLoggerErrorIsActionable 钉住 #108 的报错文案。
+// TestInitLoggerErrorIsActionable 钉住 InitLogger 失败时的报错：必须带出
+// 实际失败的路径与底层原因，调用方据此判断是哪个目录、为什么建不出来。
 //
-// 背景：gtsp 的默认 logPath 是 **<可执行文件所在目录>/logs**
-// （main.go: filepath.Join(filepath.Dir(os.Executable()), "logs")）。
-// 把它放进只读根文件系统的容器里运行时，该目录不可创建 → MkdirAll 失败。
-// 旧文案只说「use --log-path to choose a writable directory」，
-// 用户照做仍然 EROFS（镜像里没有第二个可写路径），等于给了一条
-// **在只读根文件系统下不可执行**的建议。
-//
-// 注意 `--read-only` / `--tmpfs` 是 **docker run 的参数**，不是 gtsp 自己的 flag。
-//
-// 实测 v0.4.18 的各场景（容器内）：
-//
-//	--read-only --log-path /dev/shm/logs  → rc=0  ✅ 可写挂载点成立
-//	--read-only（默认 <exe 目录>/logs）    → rc=1  ❌ EROFS
-//	--read-only --tmpfs /tmp（不改路径）   → rc=1  ❌
-//	--read-only --log-path /tmp（已存在）  → rc=1  ❌ 且**无任何建议**
-//
-// 所以文案必须同时提到：可写的 --log-path，以及只读根文件系统下要挂 tmpfs。
-// 这条测试防的是「文案被改回不够可执行」的回归。
+// 不承载特定部署环境（例如只读根文件系统）的建议 —— 那不是 gtsp 的职责。
 func TestInitLoggerErrorIsActionable(t *testing.T) {
 	// 造一个必然让 MkdirAll 失败的路径：拿一个已存在的**普通文件**当父目录。
 	// 跨平台稳定，不依赖权限位或只读挂载。
@@ -60,21 +44,7 @@ func TestInitLoggerErrorIsActionable(t *testing.T) {
 		t.Errorf("报错未包含失败的路径 %q:\n%s", badPath, msg)
 	}
 
-	// 2) 必须给出可执行的方向：--log-path。
-	if !strings.Contains(msg, "--log-path") {
-		t.Errorf("报错未提到 --log-path:\n%s", msg)
-	}
-
-	// 3) 必须点明只读根文件系统的额外一步（--tmpfs）。这是 #108 的核心，
-	//    少了这句，--read-only 用户永远走不通。
-	if !strings.Contains(msg, "--read-only") {
-		t.Errorf("报错未提到 --read-only 场景:\n%s", msg)
-	}
-	if !strings.Contains(msg, "--tmpfs") {
-		t.Errorf("报错未提到 --tmpfs（只读根文件系统下唯一可行的解法）:\n%s", msg)
-	}
-
-	// 4) 必须带出底层原因，便于区分 EROFS / EACCES / 路径不存在。
+	// 2) 必须带出底层原因，便于区分 EROFS / EACCES / 路径不存在。
 	//
 	//    判据不能写死措辞，也不能只认 "mkdir" 字样：
 	//    - 只断 "mkdir" 会**假绿**：实测变异「保留 PathError.Op、丢掉底层 Errno」
@@ -97,10 +67,8 @@ func TestInitLoggerErrorIsActionable(t *testing.T) {
 }
 
 // TestInitLoggerOpenFileErrorIsActionable 覆盖第二个分支：
-// 目录**存在**但日志文件写入失败（MkdirAll 成功、OpenFile 失败）时同样要给可执行建议。
-//
-// 早前这个分支只写 "failed to open log file: %v"，在只读根文件系统下
-// （例如 --log-path 指向已存在的 /tmp）用户得不到任何提示。
+// 目录存在但日志文件打不开（MkdirAll 成功、OpenFile 失败）时报错同样带出
+// 文件路径与底层原因。
 //
 // 造失败的方式：在目录里先建一个**同名目录** gt-agent.log。于是 MkdirAll(dir)
 // 成功，而 OpenFile(dir/gt-agent.log) 必然失败（目标是目录）。
@@ -124,11 +92,5 @@ func TestInitLoggerOpenFileErrorIsActionable(t *testing.T) {
 
 	if !mentionsPath(msg, filepath.Join(dir, "gt-agent.log")) {
 		t.Errorf("OpenFile 失败的报错未带出日志文件路径:\n%s", msg)
-	}
-	if !strings.Contains(msg, "--log-path") {
-		t.Errorf("OpenFile 失败的报错未提到 --log-path:\n%s", msg)
-	}
-	if !strings.Contains(msg, "--tmpfs") {
-		t.Errorf("OpenFile 失败的报错未提到 --tmpfs（应与 MkdirAll 分支一致）:\n%s", msg)
 	}
 }

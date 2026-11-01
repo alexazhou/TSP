@@ -60,8 +60,13 @@ var ExecuteBashSchema = api.ToolDefinition{
 				"description": "Optional: Action to take when task_timeout expires. 'background' (default) promotes the process to background and returns a process_id. 'kill' terminates the process and returns partial output.",
 			},
 			"run_in_background": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Optional: Start the process immediately in the background. Equivalent to task_timeout=0 with timeout_action='background'. Defaults to false.",
+				"type": "boolean",
+				// 这里不能说「等价于 task_timeout=0 + timeout_action=background」：
+				// task_timeout<=0 在代码里会被改成默认 180s（见 handler），命令要跑满
+				// 180s 才提升。实测 `{"command":"sleep 3","task_timeout":0,
+				// "timeout_action":"background"}` 阻塞 3.04s 后返回 ExecuteBashResult，
+				// 而 run_in_background:true 是 0.01s 返回 BashBackgroundResult。
+				"description": "Optional: Start the process immediately in the background and return a process_id right away, without waiting. Unlike setting task_timeout=0 (which falls back to the default 180s and only promotes to background if the command is still running then), this never blocks. Defaults to false.",
 			},
 			"description": map[string]interface{}{
 				"type":        "string",

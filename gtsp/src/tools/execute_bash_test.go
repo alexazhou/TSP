@@ -5,34 +5,23 @@ import (
 	"testing"
 )
 
-// TestExecuteBashSchemaDescribesRealShell 钉住工具描述里的 shell 说明。
+// TestExecuteBashSchemaDescribesRealShell 确认 command 描述点明了是 shell 命令。
 //
-// 为什么需要这条测试：描述是模型/用户唯一的契约来源。Windows 上执行的是
-// busybox 的 ash（POSIX sh），若描述里写 "bash"，使用者会写 `[[ ]]`、
-// `{1..10}`、数组 —— ash 对 `{1..10}` 不展开也不报错，会静默输出字面量。
-// 那种失败最难查：命令跑了、rc=0、结果是空的。
-//
-// 历史坑：这条描述原本硬编码 "The exact bash command to execute."，
-// 在 Windows 上是一句假话。
+// 注意这里**不判断具体是哪个 shell**：那需要按平台断言，放在 src/pal 里做
+// （shell_desc_unix_test.go / shell_desc_windows_desc_test.go）。
+// 本测试早先用「命中 bash/ash/POSIX sh/cmd.exe/powershell 任一关键字即过」的判据，
+// 结果把 Unix 的说明改成「Windows cmd.exe / powershell」也照样绿 ——
+// 判据太宽，等于没测。跨平台一致的只断言这句话，平台相关的交给平台测试。
 func TestExecuteBashSchemaDescribesRealShell(t *testing.T) {
 	cmdDesc := commandParamDescription(t)
 
 	if !strings.Contains(cmdDesc, "shell command") {
 		t.Errorf("command 描述未点明是 shell 命令: %q", cmdDesc)
 	}
-
-	// 描述必须来自 pal（按平台编译），不能是硬编码的一 platform-agnostic 文案。
-	// 判据：无论哪个平台，描述都必须提到具体的解释器，而不是泛泛的 "shell"。
-	platformish := []string{"bash", "ash", "POSIX sh", "cmd.exe", "powershell"}
-	found := false
-	for _, kw := range platformish {
-		if strings.Contains(cmdDesc, kw) {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("command 描述没有点明解释器（应为 bash / ash / POSIX sh 之一）: %q", cmdDesc)
+	// 描述必须由 pal 提供平台文案拼接而来，因此必然含平台段的前缀。
+	// 若有人把描述改回硬编码的固定文本，这里会红。
+	if !strings.Contains(cmdDesc, "commands are interpreted by") {
+		t.Errorf("command 描述未包含平台解释器说明（应由 pal.ShellDescription 拼接）: %q", cmdDesc)
 	}
 }
 

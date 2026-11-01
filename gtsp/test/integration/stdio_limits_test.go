@@ -267,6 +267,10 @@ func TestServeStdioKillsBackgroundProcessesOnEOF(t *testing.T) {
 	// 恰好绕开了「进程树」这件事。这里等 PID 文件出现（最多 10s）。
 	waitForFile(t, pidFile, 10*time.Second)
 
+	// 正向控制：确认子进程此刻确实活着。少了这一条，如果子进程压根没起来，
+	// 后面的「清理后应消失」会恒真通过 —— 测试绿，但什么都没验证。
+	assertBackgroundChildAlive(t, pidFile)
+
 	// 关闭 stdin → ServeStdio 走 EOF 路径
 	inW.Close()
 	select {

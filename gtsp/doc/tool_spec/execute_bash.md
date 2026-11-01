@@ -12,8 +12,8 @@
 *   **后台进程支持**：支持以分离模式运行长时间运行的服务（如启动开发服务器），并返回进程组 ID。
 
 ## 3. 参数定义 (JSON)
-*   **`command`** (string): 要执行的完整 Bash 命令。
-*   **`task_timeout`** (integer, 可选): 命令执行的最大秒数，默认 60 秒。设为 0 使用默认值。
+*   **`command`** (string): 要执行的 shell 命令。具体解释器按平台而定：Unix 上是 `bash -c`，Windows 上是 busybox `ash`（POSIX sh，不是 bash）。
+*   **`task_timeout`** (integer, 可选): 命令执行的最大秒数，默认 180 秒。设为 0 或省略都使用默认值（注意：**不是** 0 = 立即后台）。
 *   **`timeout_action`** (string, 可选): 超时后行为。`"background"`（默认）提升为后台进程；`"kill"` 终止进程组并返回部分输出。
 *   **`run_in_background`** (boolean, 可选): 是否在后台运行。若为 `true`，工具启动命令后立即返回进程信息。
 *   **`description`** (string, 可选): 对该操作的简要说明，增强操作的可审计性。

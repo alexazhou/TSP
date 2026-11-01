@@ -27,17 +27,17 @@ Use `execute_bash` for operations that cannot be expressed through the other too
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `command` | `string` | — | **Required.** The bash command to execute. Runs via `bash -c <command>`. |
-| `task_timeout` | `integer` | `60` | Timeout in seconds. `0` means use the default (60s). Ignored when `run_in_background: true`. |
+| `command` | `string` | — | **Required.** The shell command to execute. The interpreter is platform-dependent: `bash -c` on Unix, busybox `ash` (POSIX sh, **not** bash) on Windows. |
+| `task_timeout` | `integer` | `180` | Timeout in seconds. `0` or omitted means use the default (180s) — it does **not** mean "run in background immediately". Ignored when `run_in_background: true`. |
 | `timeout_action` | `string` | `"background"` | Action when timeout expires: `"background"` promotes to background; `"kill"` terminates the process group and returns partial output. |
-| `run_in_background` | `boolean` | `false` | Start immediately in background. Equivalent to `task_timeout: 0, timeout_action: "background"`. |
+| `run_in_background` | `boolean` | `false` | Start immediately in background and return a `process_id` without waiting. This is **not** equivalent to `task_timeout: 0` — that falls back to the 180s default and only promotes on timeout. |
 | `description` | `string` | — | Optional human-readable description of the command's purpose (for logging). |
 
 #### Parameter combinations
 
 | Scenario | Parameters | Behavior |
 |---|---|---|
-| Default (no params) | _(none)_ | Waits up to 60s. Returns result if done; otherwise promotes to background and returns `process_id`. |
+| Default (no params) | _(none)_ | Waits up to 180s. Returns result if done; otherwise promotes to background and returns `process_id`. |
 | Custom timeout, background on expiry | `task_timeout: 120` | Waits up to 120s. Returns result if done; otherwise promotes to background. |
 | Timeout with kill | `task_timeout: 60, timeout_action: "kill"` | Waits up to 60s. Returns result if done; otherwise kills the process group and returns partial output. |
 | Immediate background | `run_in_background: true` | Registers process, returns `process_id` immediately. |

@@ -91,6 +91,23 @@ func TestBusyboxPathSemantics(t *testing.T) {
 			t.Errorf("加引号后实测为 %q，期望原样 %q", quoted, `C:\Windows\System32`)
 		}
 	})
+
+	// -X 的**位置**：busybox 的 -X 是「shell 自己的选项」，必须出现在 `sh`
+	// 之后、`-c` 之前。写成 `busybox -X sh -c ...` 会被当成 applet 名，
+	// 结果是 127 / applet not found。ShellCommand 里用的是前者（正确），
+	// 这条测试把位置要求钉住，避免以后有人「顺手」把它挪到最前面。
+	t.Run("x_flag_position", func(t *testing.T) {
+		correct := exec.Command(busybox, "sh", "-X", "-c", "echo ok")
+		if out, err := correct.CombinedOutput(); err != nil {
+			t.Errorf("`busybox sh -X -c` 应成功，实际 err=%v out=%q", err, string(out))
+		}
+
+		wrong := exec.Command(busybox, "-X", "sh", "-c", "echo ok")
+		out, err := wrong.CombinedOutput()
+		if err == nil {
+			t.Errorf("`busybox -X sh -c` 竟然成功了（输出 %q）：-X 位置约束已变，需复核 ShellCommand", string(out))
+		}
+	})
 }
 
 // busyboxPath 返回仓库内 busybox 的绝对路径。

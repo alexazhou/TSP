@@ -21,7 +21,14 @@ func setupShellTestSession() api.Session {
 	return s
 }
 
+// TestExecuteBashHandler 覆盖 execute_bash 的基本行为（输出捕获、退出码、
+// stderr、截断等）。
+//
+// Windows 上必须把 shell 钉到自带 busybox：否则 ResolveShell 会回退到 Git Bash，
+// 这些断言（尤其 `xyz` 的 stderr 文案）测的就是另一个 shell，红绿都不说明问题。
 func TestExecuteBashHandler(t *testing.T) {
+	pinTestShell(t)
+
 	session := setupShellTestSession()
 	t.Run("success command", func(t *testing.T) {
 		params := json.RawMessage(`{"command": "echo 'hello world'"}`)
@@ -66,8 +73,12 @@ func TestExecuteBashHandler(t *testing.T) {
 		if result.ExitCode == 0 {
 			t.Errorf("expected non-zero exit code for command not found, got %d", result.ExitCode)
 		}
-		if !strings.Contains(result.Stderr, "command not found") {
-			t.Errorf("expected 'command not found' in stderr, got %q", result.Stderr)
+		// 断言用 "not found" 而不是 "command not found"：后者是 bash 的措辞，
+		// busybox ash 输出的是 `sh: xyz: not found`（少了 "command"）。
+		// 原来的断言在 busybox 下必红、在 Git Bash 下必绿 —— 换句话说，它
+		// 实际测的是「当前是哪个 shell」而不是「命令不存在时行为是否正确」。
+		if !strings.Contains(result.Stderr, "not found") {
+			t.Errorf("expected 'not found' in stderr, got %q", result.Stderr)
 		}
 		if result.Success {
 			t.Errorf("expected success=false for command not found, got success=%v", result.Success)
@@ -107,6 +118,8 @@ func TestExecuteBashHandler(t *testing.T) {
 }
 
 func TestExecuteBash_RunInBackground(t *testing.T) {
+	pinTestShell(t)
+
 	session := setupShellTestSession()
 	params := json.RawMessage(`{"command": "sleep 10", "run_in_background": true}`)
 	res, err := tools.ExecuteBashHandler(session, params)
@@ -130,6 +143,8 @@ func TestExecuteBash_RunInBackground(t *testing.T) {
 }
 
 func TestExecuteBash_TaskTimeout(t *testing.T) {
+	pinTestShell(t)
+
 	session := setupShellTestSession()
 	// task_timeout:1 with a command that sleeps for 5 seconds
 	params := json.RawMessage(`{"command": "sleep 5", "task_timeout": 1}`)
@@ -154,6 +169,8 @@ func TestExecuteBash_TaskTimeout(t *testing.T) {
 }
 
 func TestExecuteBash_DefaultTimeout(t *testing.T) {
+	pinTestShell(t)
+
 	session := setupShellTestSession()
 	// No task_timeout specified → should use default 60s, but we use a short sleep
 	// to verify that the default timeout mechanism works (command finishes before timeout)
@@ -175,6 +192,8 @@ func TestExecuteBash_DefaultTimeout(t *testing.T) {
 }
 
 func TestExecuteBash_DefaultTimeoutPromotesBackground(t *testing.T) {
+	pinTestShell(t)
+
 	session := setupShellTestSession()
 	// No task_timeout, command sleeps 5s → should be promoted to background after default timeout
 	// We can't wait 60s in a test, so use task_timeout:2 to verify the default path works
@@ -197,6 +216,8 @@ func TestExecuteBash_DefaultTimeoutPromotesBackground(t *testing.T) {
 }
 
 func TestExecuteBash_TimeoutActionKill(t *testing.T) {
+	pinTestShell(t)
+
 	session := setupShellTestSession()
 	// timeout_action: "kill" should terminate the process
 	params := json.RawMessage(`{"command": "sleep 30", "task_timeout": 1, "timeout_action": "kill"}`)
@@ -222,6 +243,8 @@ func TestExecuteBash_TimeoutActionKill(t *testing.T) {
 }
 
 func TestExecuteBash_TimeoutActionKillReturnsPartialOutput(t *testing.T) {
+	pinTestShell(t)
+
 	session := setupShellTestSession()
 	// Command produces output then sleeps → kill should capture partial output
 	params := json.RawMessage(`{"command": "echo partial_data && sleep 30", "task_timeout": 1, "timeout_action": "kill"}`)
@@ -239,6 +262,8 @@ func TestExecuteBash_TimeoutActionKillReturnsPartialOutput(t *testing.T) {
 }
 
 func TestProcessOutput(t *testing.T) {
+	pinTestShell(t)
+
 	session := setupShellTestSession()
 	// Start a background process that writes output after a short delay
 	params := json.RawMessage(`{"command": "echo started && sleep 0.5 && echo done", "run_in_background": true}`)
@@ -273,6 +298,8 @@ func TestProcessOutput(t *testing.T) {
 }
 
 func TestProcessStop(t *testing.T) {
+	pinTestShell(t)
+
 	session := setupShellTestSession()
 	// Start a long-running background process
 	params := json.RawMessage(`{"command": "sleep 30", "run_in_background": true}`)
@@ -325,6 +352,8 @@ func TestProcessOutput_NotFound(t *testing.T) {
 }
 
 func TestProcessList(t *testing.T) {
+	pinTestShell(t)
+
 	session := setupShellTestSession()
 
 	// Start: no running processes

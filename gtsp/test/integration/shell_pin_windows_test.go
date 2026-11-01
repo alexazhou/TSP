@@ -44,7 +44,28 @@ func pinTestShell(t *testing.T) {
 // 子进程的 stdout/stderr 重定向到 NUL：否则它会继承 execute_bash 的管道写端，
 // 父进程被杀后 os/exec 的 Wait 仍要等管道关闭，于是「子孙是否残留」这一层
 // 永远走不到，实际触发的是 WaitChan 超时那条断言（断言形同虚设）。
-const backgroundChildProbe = `sleep 30 >NUL 2>&1 & echo $! > "%s"; wait`
+//
+// 注意 %s 已经带了引号（调用方传的是 jsonQuote 结果），这里**不能再加一对**：
+// `> ""C:\path""` 在遇到空格时会提前闭合引号，把文件写到错误的路径上。
+const backgroundChildProbe = `sleep 30 >NUL 2>&1 & echo $! > %s; wait`
+
+// assertBackgroundChildAlive 在关闭 stdin **之前**确认子进程真的活着。
+//
+// 这是「清理断言」的正向控制（positive control）：如果子进程压根没起来，
+// 后面的 assertBackgroundChildGone 会因为在进程表里找不到它而**恒真通过**。
+func assertBackgroundChildAlive(t *testing.T, pidFile string) {
+	t.Helper()
+
+	pid := readTrimmed(t, pidFile)
+	if pid == "" {
+		t.Fatalf("子进程 PID 未落盘，无法确认它是否真的启动: %s", pidFile)
+	}
+
+	out, _ := exec.Command("tasklist", "/FI", "PID eq "+pid, "/FO", "CSV", "/NH").Output()
+	if !containsPID(string(out), pid) {
+		t.Fatalf("关闭 stdin 前子进程 PID %s 就已不存在，后续清理断言将恒真通过:\n%s", pid, string(out))
+	}
+}
 
 // assertBackgroundChildGone 在 KillAll 之后确认指定 PID 的子进程已经消失。
 //

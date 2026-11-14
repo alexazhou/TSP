@@ -3,9 +3,11 @@
 package e2e_test
 
 import (
+	"fmt"
 	"os/exec"
 	"strconv"
 	"syscall"
+	"unsafe"
 )
 
 const (
@@ -13,6 +15,8 @@ const (
 	processSynchronize             = 0x00100000
 	waitTimeout                    = 0x00000102
 )
+
+var procGetProcessTimes = syscall.NewLazyDLL("kernel32.dll").NewProc("GetProcessTimes")
 
 func setHarnessProcessGroup(_ *exec.Cmd) {}
 
@@ -32,6 +36,11 @@ func sendTerminateSignal(cmd *exec.Cmd) error {
 	return cmd.Process.Kill()
 }
 
+// isPIDAlive reports whether pid refers to the same living process instance as
+// on first sight. OpenProcess+WaitForSingleObject alone answers "alive" both
+// for the original process and for an unrelated process that reused a dead
+// descendant's pid, so a confirmed-live probe is verified against the process
+// creation time (GetProcessTimes) recorded on first sight.
 func isPIDAlive(pid int) bool {
 	if pid <= 0 {
 		return false
@@ -45,5 +54,23 @@ func isPIDAlive(pid int) bool {
 	if err != nil {
 		return false
 	}
-	return res == waitTimeout
+	if res != waitTimeout {
+		// Signaled: the process object is terminated (or still dying).
+		return false
+	}
+
+	var creation, exit, kernel, user syscall.Filetime
+	r1, _, _ := procGetProcessTimes.Call(
+		uintptr(h),
+		uintptr(unsafe.Pointer(&creation)),
+		uintptr(unsafe.Pointer(&exit)),
+		uintptr(unsafe.Pointer(&kernel)),
+		uintptr(unsafe.Pointer(&user)),
+	)
+	if r1 == 0 {
+		// Identity unavailable; trust the liveness probe result.
+		return true
+	}
+	token := fmt.Sprintf("%x:%x", creation.HighDateTime, creation.LowDateTime)
+	return checkPIDInstance(pid, token, true)
 }

@@ -179,5 +179,5 @@ func wsConnect(t, addr) *WSSession              // websocket 模式专用（复�
 ## 7. 局限
 
 - 硬杀 gtsp（kill -9）无法在测试进程内安全演练（收尸逻辑在测试进程里），保持人工验证 + 方案文档 §3.6 防线覆盖。
-- e2e 断言 out-of-band 依赖平台探测原语（Unix `kill(pid,0)`、Windows OpenProcess），不依赖外部命令输出格式。Windows 实现注意：`OpenProcess` 只要进程内核对象尚未释放就会成功（进程已退出但仍有句柄未关时亦然），不能仅凭其成功判活——须再查 `WaitForSingleObject(h, 0) == WAIT_TIMEOUT`（或 `GetExitCodeProcess == STILL_ACTIVE`），最后 `CloseHandle`。
+- e2e 断言 out-of-band 依赖平台探测原语（Unix `kill(pid,0)`、Windows OpenProcess），不依赖外部命令输出格式。Windows 实现注意：`OpenProcess` 只要进程内核对象尚未释放就会成功（进程已退出但仍有句柄未关时亦然），不能仅凭其成功判活——须再查 `WaitForSingleObject(h, 0) == WAIT_TIMEOUT`（或 `GetExitCodeProcess == STILL_ACTIVE`），最后 `CloseHandle`。此外 **pid 不是唯一身份**：刚死的后代 pid 可能被无关新进程复用，探测须核对进程实例身份（Linux `/proc/<pid>/stat` 的 starttime、Windows `GetProcessTimes` 的 CreationTime，均在首次探测时记录、后续对比；快照表随每个测试的 gtsp 会话启动重置），实例变化一律视为原进程已死。CI 实测另确认：终止信号是异步生效的，杀后立即单次探测会撞上数十毫秒的死亡窗口，断言处统一用 `waitForNoSurvivors`（≤2s 轮询）吸收。
 - 时间类断言（超时、轮询）保留余量（如 P3 的 task_timeout=1 实际允许 1–3s 完成），防慢 runner 抖动。

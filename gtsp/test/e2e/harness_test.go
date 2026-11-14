@@ -143,6 +143,7 @@ type lineReadResult struct {
 
 func startGTSP(t *testing.T, opts ...sessionOption) *TSPSession {
 	t.Helper()
+	resetPIDIdentity()
 	cfg := &sessionConfig{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -536,6 +537,39 @@ func (w *WSSession) callTool(name string, params any, timeout ...time.Duration) 
 
 func (w *WSSession) Close() {
 	_ = w.conn.Close()
+}
+
+// pidIdentity records the first-seen identity of each probed pid so later
+// probes can tell "the original descendant" apart from "an unrelated process
+// that reused the pid number" — pid alone is not a unique process identity.
+// startGTSP resets it per test so records never leak across sessions.
+var (
+	pidIdentityMu sync.Mutex
+	pidIdentity   = map[int]string{}
+)
+
+func resetPIDIdentity() {
+	pidIdentityMu.Lock()
+	defer pidIdentityMu.Unlock()
+	pidIdentity = map[int]string{}
+}
+
+// checkPIDInstance verifies that pid still refers to the same process instance
+// as on first sight, using the platform-provided identity token. Platforms
+// without a token pass supported=false and the plain liveness probe is
+// trusted as-is.
+func checkPIDInstance(pid int, token string, supported bool) bool {
+	if !supported {
+		return true
+	}
+	pidIdentityMu.Lock()
+	defer pidIdentityMu.Unlock()
+	prev, ok := pidIdentity[pid]
+	if !ok {
+		pidIdentity[pid] = token
+		return true
+	}
+	return prev == token
 }
 
 // osSurvivors returns the subset of pids that are still alive in the OS.

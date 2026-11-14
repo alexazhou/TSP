@@ -25,6 +25,9 @@ func sendTerminateSignal(cmd *exec.Cmd) error {
 	return cmd.Process.Signal(syscall.SIGTERM)
 }
 
+// isPIDAlive is a plain liveness probe on non-Linux Unix (no /proc for an
+// instance-identity token). Darwin pids increment toward 99998 before
+// wrapping, so reuse within a test's polling window is not a practical risk.
 func isPIDAlive(pid int) bool {
 	if pid <= 0 {
 		return false

@@ -3,24 +3,10 @@ package e2e_test
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
-
-// skipWindowsDeadLeaderStop reports why the subtest is skipped on Windows:
-// process_stop kills via taskkill /T, whose tree-break cannot reach
-// descendants once the group leader (the shell) has already exited.
-// Handover entries and intentional-background scenarios have a dead leader
-// by definition, so cleanup assertions there need the Job Object work
-// planned in process_group_cleanup.md §3.3.
-func skipWindowsDeadLeaderStop(t *testing.T) {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows process_stop cannot kill descendants of an exited group leader (taskkill /T limitation); pending Job Object work in process_group_cleanup.md §3.3")
-	}
-}
 
 func TestProcess_SyncAndTruncation(t *testing.T) {
 	s := startGTSP(t)
@@ -149,7 +135,6 @@ func TestProcess_LeftoverHandoverAndCleanup(t *testing.T) {
 	s := startGTSP(t)
 
 	t.Run("P7_P8_P10_incident_repro_handover_stop_idempotent", func(t *testing.T) {
-		skipWindowsDeadLeaderStop(t)
 		script := strings.Join([]string{
 			"#!/bin/sh",
 			": > load_pids.txt",
@@ -205,7 +190,9 @@ func TestProcess_LeftoverHandoverAndCleanup(t *testing.T) {
 		if ok, _ := stopRes["success"].(bool); !ok {
 			t.Fatalf("process_stop failed: %v", stopRes)
 		}
-		if surv := osSurvivors(t, filePIDs); len(surv) != 0 {
+		// Poll: TerminateJobObject/kill deliver termination asynchronously, so a
+		// single immediate probe races the dying window on slow CI runners.
+		if surv := waitForNoSurvivors(t, filePIDs, 2*time.Second); len(surv) != 0 {
 			t.Fatalf("descendants survived process_stop: %v", surv)
 		}
 
@@ -225,7 +212,6 @@ func TestProcess_LeftoverHandoverAndCleanup(t *testing.T) {
 	})
 
 	t.Run("P9_intentional_background_not_auto_killed", func(t *testing.T) {
-		skipWindowsDeadLeaderStop(t)
 		res := s.callTool("execute_bash", map[string]any{
 			"command": "sleep 30 >/dev/null 2>&1 & echo $! > p9.pid; echo started",
 		}, 10*time.Second)
@@ -251,7 +237,7 @@ func TestProcess_LeftoverHandoverAndCleanup(t *testing.T) {
 		if ok, _ := stopRes["success"].(bool); !ok {
 			t.Errorf("process_stop failed: %v", stopRes)
 		}
-		if surv := osSurvivors(t, pids); len(surv) != 0 {
+		if surv := waitForNoSurvivors(t, pids, 2*time.Second); len(surv) != 0 {
 			t.Errorf("child survived process_stop: %v", surv)
 		}
 	})

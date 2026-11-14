@@ -52,6 +52,12 @@ func ProcessStopHandler(session api.Session, params json.RawMessage) (interface{
 	if bp.IsDone() {
 		hadLeftover := bp.HasLeftoverProcesses()
 		bp.Kill()
+		if hadLeftover {
+			deadline := time.Now().Add(2 * time.Second)
+			for bp.HasLeftoverProcesses() && time.Now().Before(deadline) {
+				time.Sleep(20 * time.Millisecond)
+			}
+		}
 		bp.Close()
 		ec := bp.GetExitCode()
 		msg := "process already exited"

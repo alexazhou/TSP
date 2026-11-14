@@ -2,7 +2,6 @@ name: Test gtsp
 
 on:
   push:
-    branches: [master, main]
     paths:
       - 'gtsp/**'
   pull_request:

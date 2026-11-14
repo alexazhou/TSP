@@ -79,6 +79,8 @@ func TestExecuteBashDescriptionHasThreeRealModes(t *testing.T) {
 		`timeout_action: "kill"`,
 		`timeout_action: "background", default`,
 		"run_in_background: true",
+		"leftover_processes",
+		"process_stop",
 	} {
 		if !strings.Contains(desc, want) {
 			t.Errorf("工具描述缺少模式说明 %q:\n%s", want, desc)

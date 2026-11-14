@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gTSP/src/api"
 	"gTSP/src/pal"
+	"os"
 	"strings"
 	"time"
 )
@@ -20,12 +21,14 @@ type ExecuteBashParams struct {
 
 // ExecuteBashResult defines output for a completed execute_bash call
 type ExecuteBashResult struct {
-	Success   bool   `json:"success"`
-	Stdout    string `json:"stdout"`
-	Stderr    string `json:"stderr"`
-	ExitCode  int    `json:"exit_code"`
-	Truncated bool   `json:"truncated,omitempty"`
-	Message   string `json:"message,omitempty"` // Optional: human-readable status message
+	Success           bool                   `json:"success"`
+	Stdout            string                 `json:"stdout"`
+	Stderr            string                 `json:"stderr"`
+	ExitCode          int                    `json:"exit_code"`
+	Truncated         bool                   `json:"truncated,omitempty"`
+	Message           string                 `json:"message,omitempty"`            // Optional: human-readable status message
+	ProcessID         string                 `json:"process_id,omitempty"`         // Set when descendant processes survive after command exit
+	LeftoverProcesses *pal.LeftoverProcesses `json:"leftover_processes,omitempty"` // Snapshot of surviving descendants
 }
 
 // BashBackgroundResult is returned when a process is running in the background
@@ -96,6 +99,8 @@ func executeBashDescription() string {
 		"  1. Synchronous, kill on timeout (timeout_action: \"kill\"): waits up to task_timeout seconds (default 180s); returns the result if the command finishes, otherwise kills the process group and returns partial output\n" +
 		"  2. Synchronous, background on timeout (timeout_action: \"background\", default): waits up to task_timeout seconds (default 180s); returns the result if the command finishes, otherwise promotes the still-running process to background and returns a process_id\n" +
 		"  3. Asynchronous (run_in_background: true): starts the command immediately in the background and returns a process_id without waiting (task_timeout and timeout_action are ignored)\n" +
+		"- Synchronous mode leftover descendants: if descendant processes forked by the command (e.g., '&' or daemons) are still running after the command exits, they are NOT automatically terminated; the result will include process_id, leftover_processes, and a message so you can terminate them with process_stop or inspect them with process_output (unclaimed processes persist until server shutdown)\n" +
+		"- Prefer run_in_background: true for intentionally long-running tasks (such as starting servers or listening on ports)\n" +
 		"- Use process_output to poll or wait for background process completion\n" +
 		"- Automatically truncates large outputs to protect context window\n" +
 		"- Use this tool when you need to run shell commands, build scripts, run tests, or perform other system-level operations"
@@ -117,19 +122,58 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare shell: %v", err)
 	}
-	pal.SetProcessGroup(cmd) // Create new process group for clean kill (platform-specific)
-	stdoutBuf := &api.ProcBuffer{}
-	stderrBuf := &api.ProcBuffer{}
-	cmd.Stdout = stdoutBuf
-	cmd.Stderr = stderrBuf
 
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start command: %v", err)
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdout pipe: %v", err)
+	}
+	errR, errW, err := os.Pipe()
+	if err != nil {
+		_ = outR.Close()
+		_ = outW.Close()
+		return nil, fmt.Errorf("failed to create stderr pipe: %v", err)
 	}
 
-	// Create a background process wrapper (starts the Wait goroutine)
+	treeHandle, err := pal.SetProcessTree(cmd) // Create isolated process group / Job Object
+	if err != nil {
+		_ = outR.Close()
+		_ = outW.Close()
+		_ = errR.Close()
+		_ = errW.Close()
+		return nil, fmt.Errorf("failed to initialize process tree: %v", err)
+	}
+
+	stdoutBuf := &api.ProcBuffer{}
+	stderrBuf := &api.ProcBuffer{}
+	cmd.Stdout = outW
+	cmd.Stderr = errW
+
+	if err := cmd.Start(); err != nil {
+		_ = outR.Close()
+		_ = outW.Close()
+		_ = errR.Close()
+		_ = errW.Close()
+		treeHandle.Close()
+		return nil, fmt.Errorf("failed to start command: %v", err)
+	}
+	_ = outW.Close()
+	_ = errW.Close()
+
+	if err := treeHandle.BindStartedProcess(cmd); err != nil {
+		_ = outR.Close()
+		_ = errR.Close()
+		treeHandle.Close()
+		return nil, fmt.Errorf("failed to bind process tree: %v", err)
+	}
+
+	sessionID := ""
+	if session != nil {
+		sessionID = session.GetSessionID()
+	}
+
+	// Create a background process wrapper (starts I/O copy and Wait goroutines)
 	id := api.GlobalProcessRegistry.GenerateID()
-	bp := api.GlobalProcessRegistry.NewProcess(id, p.Command, cmd, stdoutBuf, stderrBuf)
+	bp := api.GlobalProcessRegistry.NewProcess(id, p.Command, sessionID, cmd, treeHandle, outR, errR, stdoutBuf, stderrBuf)
 
 	// RunInBackground: register and return immediately
 	if p.RunInBackground {
@@ -160,15 +204,38 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 
 	select {
 	case <-bp.WaitChan():
-		// Completed before timeout
-		return buildSyncResult(bp), nil
+		// Main shell exited before timeout; check for surviving descendants.
+		if !bp.HasLeftoverProcesses() {
+			bp.WaitIO(2 * time.Second)
+			bp.Close()
+			return buildSyncResult(bp), nil
+		}
+		leftover := bp.EnumerateLeftoverProcesses()
+		if leftover == nil || leftover.Alive == 0 {
+			bp.WaitIO(2 * time.Second)
+			bp.Close()
+			return buildSyncResult(bp), nil
+		}
+
+		// Hand over surviving descendants to the agent without killing them.
+		api.GlobalProcessRegistry.Register(bp)
+		bp.WaitIO(500 * time.Millisecond)
+		result := buildSyncResult(bp)
+		result.ProcessID = bp.ID
+		result.LeftoverProcesses = leftover
+		result.Message = "command exited but descendant process(es) are still running; " +
+			"use process_stop to terminate, or process_output to poll; " +
+			"unclaimed processes persist until server shutdown"
+		return result, nil
 	case <-timer.C:
 		// Timeout
 		switch action {
 		case "kill":
-			// Kill entire process group to ensure child processes are also terminated
-			pal.KillProcessGroup(cmd.Process.Pid)
+			// Kill entire process tree to ensure child processes are also terminated
+			bp.Kill()
 			<-bp.WaitChan() // Wait for process to be reaped
+			bp.WaitIO(500 * time.Millisecond)
+			bp.Close()
 			result := buildSyncResult(bp)
 			result.Success = true // Expected behavior, not a failure
 			result.Message = fmt.Sprintf("Command timed out after %ds and was killed", timeout)
@@ -194,7 +261,7 @@ func buildSyncResult(bp *api.BackgroundProcess) ExecuteBashResult {
 		Stdout:    stdoutStr,
 		Stderr:    stderrStr,
 		ExitCode:  exitCode,
-		Truncated: stdoutTrunc || stderrTrunc,
+		Truncated: stdoutTrunc || stderrTrunc || bp.Stdout.Truncated() || bp.Stderr.Truncated(),
 	}
 }
 

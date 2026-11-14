@@ -52,6 +52,7 @@ func (d *Dispatcher) ServeWS(port int) {
 
 		client := &WSClient{Conn: conn}
 		session := NewSession()
+		defer GlobalProcessRegistry.KillSession(session.GetSessionID())
 		defer session.CloseLogger()
 
 		log.Printf("New client connected via WebSocket from %s, session ID: %s", r.RemoteAddr, session.GetSessionID())

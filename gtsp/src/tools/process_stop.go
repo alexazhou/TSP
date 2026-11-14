@@ -50,12 +50,19 @@ func ProcessStopHandler(session api.Session, params json.RawMessage) (interface{
 	}
 
 	if bp.IsDone() {
+		hadLeftover := bp.HasLeftoverProcesses()
+		bp.Kill()
+		bp.Close()
 		ec := bp.GetExitCode()
+		msg := "process already exited"
+		if hadLeftover {
+			msg = "process terminated"
+		}
 		return ProcessStopResult{
 			ProcessID: p.ProcessID,
 			Success:   true,
 			ExitCode:  &ec,
-			Message:   "process already exited",
+			Message:   msg,
 		}, nil
 	}
 
@@ -70,6 +77,8 @@ func ProcessStopHandler(session api.Session, params json.RawMessage) (interface{
 			Message:   "process kill timeout: did not terminate within 2 seconds",
 		}, nil
 	}
+	bp.WaitIO(100 * time.Millisecond)
+	bp.Close()
 
 	ec := bp.GetExitCode()
 	return ProcessStopResult{

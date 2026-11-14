@@ -38,8 +38,14 @@ func ProcessListHandler(session api.Session, params json.RawMessage) (interface{
 
 	processes := make([]ProcessInfo, 0, len(procs))
 	for _, bp := range procs {
-		if bp.IsDone() {
-			continue // Skip completed processes
+		hasLeftover := bp.HasLeftoverProcesses()
+		if bp.IsDone() && !hasLeftover {
+			continue // Skip completed processes with no surviving descendants
+		}
+
+		status := "running"
+		if bp.IsDone() && hasLeftover {
+			status = "leftover"
 		}
 
 		runningTime := formatRunningTime(bp.StartedAt)
@@ -47,7 +53,7 @@ func ProcessListHandler(session api.Session, params json.RawMessage) (interface{
 			ProcessID:   bp.ID,
 			Command:     bp.Command,
 			RunningTime: runningTime,
-			Status:      "running",
+			Status:      status,
 			StartedAt:   bp.StartedAt.Format(time.RFC3339),
 		})
 	}

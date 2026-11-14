@@ -1,20 +1,22 @@
 package tools
 
 import (
-	"gTSP/src/api"
 	"encoding/json"
 	"fmt"
+	"gTSP/src/api"
+	"gTSP/src/pal"
 	"time"
 )
 
 // ProcessOutputResult is the result of a process_output call
 type ProcessOutputResult struct {
-	ProcessID string  `json:"process_id"`
-	Stdout    string  `json:"stdout"`
-	Stderr    string  `json:"stderr"`
-	Running   bool    `json:"running"`
-	ExitCode  *int    `json:"exit_code"` // null while running
-	Truncated bool    `json:"truncated"`
+	ProcessID         string                 `json:"process_id"`
+	Stdout            string                 `json:"stdout"`
+	Stderr            string                 `json:"stderr"`
+	Running           bool                   `json:"running"`
+	ExitCode          *int                   `json:"exit_code"` // null while running
+	Truncated         bool                   `json:"truncated"`
+	LeftoverProcesses *pal.LeftoverProcesses `json:"leftover_processes,omitempty"`
 }
 
 var ProcessOutputSchema = api.ToolDefinition{
@@ -73,16 +75,50 @@ func ProcessOutputHandler(session api.Session, params json.RawMessage) (interfac
 		}
 	}
 
-	if block && !bp.IsDone() {
+	if block {
 		timer := time.NewTimer(time.Duration(timeoutMs) * time.Millisecond)
 		defer timer.Stop()
-		select {
-		case <-bp.WaitChan():
-		case <-timer.C:
+
+		if !bp.IsDone() {
+			select {
+			case <-bp.WaitChan():
+			case <-timer.C:
+			}
+		}
+
+		// For handed-over entries (main shell exited, descendants still running),
+		// WaitChan is already closed; poll until descendants exit or timeout expires.
+		if bp.IsDone() && bp.HasLeftoverProcesses() {
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
+		pollLoop:
+			for bp.HasLeftoverProcesses() {
+				select {
+				case <-timer.C:
+					break pollLoop
+				case <-ticker.C:
+				}
+			}
 		}
 	}
 
-	running := !bp.IsDone()
+	hasLeftover := false
+	var leftover *pal.LeftoverProcesses
+	if bp.IsDone() {
+		if bp.HasLeftoverProcesses() {
+			leftover = bp.EnumerateLeftoverProcesses()
+			if leftover != nil && leftover.Alive > 0 {
+				hasLeftover = true
+			} else {
+				leftover = nil
+			}
+		}
+		if !hasLeftover {
+			bp.WaitIO(100 * time.Millisecond)
+		}
+	}
+
+	running := !bp.IsDone() || hasLeftover
 	var exitCodePtr *int
 	if !running {
 		ec := bp.GetExitCode()
@@ -93,11 +129,12 @@ func ProcessOutputHandler(session api.Session, params json.RawMessage) (interfac
 	stderrStr, stderrTrunc := truncateOutput(bp.Stderr.String())
 
 	return ProcessOutputResult{
-		ProcessID: p.ProcessID,
-		Stdout:    stdoutStr,
-		Stderr:    stderrStr,
-		Running:   running,
-		ExitCode:  exitCodePtr,
-		Truncated: stdoutTrunc || stderrTrunc,
+		ProcessID:         p.ProcessID,
+		Stdout:            stdoutStr,
+		Stderr:            stderrStr,
+		Running:           running,
+		ExitCode:          exitCodePtr,
+		Truncated:         stdoutTrunc || stderrTrunc || bp.Stdout.Truncated() || bp.Stderr.Truncated(),
+		LeftoverProcesses: leftover,
 	}, nil
 }

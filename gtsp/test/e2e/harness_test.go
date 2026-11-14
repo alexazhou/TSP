@@ -539,6 +539,9 @@ func (w *WSSession) Close() {
 }
 
 // osSurvivors returns the subset of pids that are still alive in the OS.
+// waitForNoSurvivors is preferred at assertion sites: a freshly SIGKILLed process
+// still answers kill(pid,0) until the kernel finishes reaping it, so a single
+// immediate check races the reaper on slow CI runners.
 func osSurvivors(t *testing.T, pids []int) []int {
 	t.Helper()
 	var alive []int
@@ -548,6 +551,24 @@ func osSurvivors(t *testing.T, pids []int) []int {
 		}
 	}
 	return alive
+}
+
+// waitForNoSurvivors polls osSurvivors until empty or the deadline expires,
+// absorbing the dying/zombie window between SIGKILL delivery and reap.
+// If a process is genuinely alive (a cleanup bug), the deadline still fails.
+func waitForNoSurvivors(t *testing.T, pids []int, timeout time.Duration) []int {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		surv := osSurvivors(t, pids)
+		if len(surv) == 0 {
+			return nil
+		}
+		if !time.Now().Before(deadline) {
+			return surv
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 // readPIDFile parses whitespace/newline-separated PIDs written by a test script.

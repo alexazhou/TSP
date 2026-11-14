@@ -183,7 +183,9 @@ func TestLifecycle_ExitPathsCleanUpProcesses(t *testing.T) {
 		if err := s.waitExit(5 * time.Second); err != nil {
 			t.Fatalf("gtsp did not exit on stdin EOF: %v", err)
 		}
-		if surv := osSurvivors(t, pids); len(surv) > 0 {
+		// Poll: a just-SIGKILLed child still answers kill(pid,0) until reaped,
+		// so a single immediate check races the reaper on slow CI runners.
+		if surv := waitForNoSurvivors(t, pids, 2*time.Second); len(surv) > 0 {
 			t.Fatalf("background child survived stdin EOF: %v", surv)
 		}
 	})
@@ -201,7 +203,7 @@ func TestLifecycle_ExitPathsCleanUpProcesses(t *testing.T) {
 		if err := s.waitExit(5 * time.Second); err != nil {
 			t.Fatalf("gtsp did not exit on SIGTERM: %v", err)
 		}
-		if surv := osSurvivors(t, pids); len(surv) > 0 {
+		if surv := waitForNoSurvivors(t, pids, 2*time.Second); len(surv) > 0 {
 			t.Fatalf("background child survived SIGTERM: %v", surv)
 		}
 	})

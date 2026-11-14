@@ -5,6 +5,7 @@ package e2e_test
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"

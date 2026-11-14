@@ -304,7 +304,7 @@ if bp.IsDone() && !bp.HasLeftoverProcesses() {
 
 - 用事故脚本 `load230.sh`（内容见 §1.2 时间线）：
   - `| tail -25`（正常跑完、脚本自行清理）→ 返回无 `process_id`、无 `leftover_processes`（与现状一致）；
-  - `| head -12`（管道截断、后代孤儿化）→ **断言返回 `process_id` 且 `leftover_processes` 树中挂 8 个存活后代**（此时后代是故意保留的，不做无杀断言）→ 紧接 `process_stop(process_id)` → 断言无存活子进程。
+  - `| head -12`（管道截断、后代孤儿化）→ 断言返回 `process_id` 且 `leftover_processes` 树挂 8 个存活后代 → `process_stop(process_id)` → 断言无存活子进程。
 - `process_list` 全程可见移交条目（status=leftover）；`process_output(process_id)` 返回 `running: true` 与刷新后的树。
 - 压测：连续 100 次「脚本 fork 后台进程 + 管道截断 + process_stop」，执行后系统无新增 PPID=1 的孤儿，FD/句柄数恒定。
 

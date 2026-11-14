@@ -2,7 +2,7 @@ package api
 
 import "encoding/json"
 
-const Version = "v0.4.19"
+const Version = "v0.5.0"
 
 // ErrorCode defines typed error codes per TSP v0.3 spec
 type ErrorCode = string

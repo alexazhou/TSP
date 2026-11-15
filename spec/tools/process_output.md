@@ -107,7 +107,7 @@ Handover / leftover example (main shell exited, a descendant is still alive):
 | Field | Type | Description |
 |---|---|---|
 | `process_id` | `string` | Echoes the input `process_id`. |
-| `stdout` / `stderr` | `string` | The truncated text of that stream (see [Output Limits](#output-limits)). May contain markers, so **`len(stdout)` is not the number of bytes it represents** — never derive a cursor from it. |
+| `stdout` / `stderr` | `string` | The truncated text of that stream (see [Output Limits](#output-limits)). May contain markers, so **`len(stdout)` is not the number of bytes it represents** — never derive a cursor from it. These are **text** fields: when the result is serialized, every invalid UTF-8 byte becomes U+FFFD, so do not use them to carry binary data (write a file and read it with `read_file`, or `base64`-encode it). The buffer itself never drops the stream's leading bytes, even when the first byte is a UTF-8 continuation byte. |
 | `running` | `boolean` | `true` while the main process is alive **or** any surviving descendant is alive. |
 | `exit_code` | `integer` \| `null` | Exit code, only when `running == false`. **`null`** while the main process is still running **and also** when the main process exited but descendants are still alive. |
 | `truncated` | `boolean` | Stream-level completeness flag: `clipped \|\| stdout_overflow \|\| stderr_overflow`. |
@@ -145,7 +145,7 @@ Markers you may see inside `stdout` / `stderr`:
 | `... (N bytes earlier output evicted by buffer; M bytes omitted) ...` | **Both at once**: buffer overflowed **and** Head+Tail dropped a middle chunk. `N` has the same meaning as above (total evicted, real count); `M` is the omitted middle. |
 | `... (N bytes earlier output omitted/evicted) ...` | Tail mode: N earlier bytes are not included (evicted and/or beyond the line/byte window). |
 | `... (N bytes evicted by buffer before this point) ...` | Your `stdout_offset` was already overwritten (`*_offset_expired: true`). |
-| `... (N bytes skipped for UTF-8 alignment) ...` | The requested offset was mid-character; it was advanced to the next character boundary. |
+| `... (N bytes skipped for UTF-8 alignment) ...` | The offset you passed was mid-character (`> 0` and inside a rune); it was advanced to the next character boundary. **Never emitted for `stdout_offset: 0`** — the stream head is not treated as mid-character. |
 | `... (N bytes remaining in buffer) ...` | Prefix mode: N bytes remain after this page; read again with the returned offset. |
 
 ## Parameter Combination Matrix

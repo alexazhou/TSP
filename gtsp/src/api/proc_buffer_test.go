@@ -528,3 +528,136 @@ func TestReadHeadTailOverflowEvictedBytesASCII(t *testing.T) {
 		t.Fatalf("split path EvictedBytes = %d, want 136", split.EvictedBytes)
 	}
 }
+
+// --------------------------------------------------------------------------- //
+// 流起点不做 UTF-8 对齐（B22 / #265）
+//
+// `alignCeilLocked` 只在「从流中间切进去」时才有意义；offset == 0 是流起点，
+// 天然是字符边界。流的首字节可以合法地是 0x80-0xBF（二进制输出、GBK 日志、
+// 写者只写了半个 rune），此时旧实现会把它当成「某个不存在字符的后半截」跳过，
+// 造成 1-3 字节永久丢失，并被误报成 "bytes evicted by buffer"。
+// --------------------------------------------------------------------------- //
+
+// invalidHead 是「首字节为 continuation byte」的样本：0xB8 0xAD 不是合法 UTF-8 开头。
+var invalidHead = []byte{0xB8, 0xAD}
+
+// TestReadHeadTailKeepsInvalidUTF8Head 覆盖 Head+Tail 的两条路径：
+// 未溢出（快路径 Full）与未溢出但需分片（Split）。两者都不许丢首字节。
+func TestReadHeadTailKeepsInvalidUTF8Head(t *testing.T) {
+	// 快路径：整段都装得下。
+	b := &ProcBuffer{}
+	whole := append(append([]byte{}, invalidHead...), []byte("abcdef\n")...)
+	if _, err := b.Write(whole); err != nil {
+		t.Fatal(err)
+	}
+	snap := b.ReadHeadTail(maxHeadTailProbe, maxHeadTailProbe)
+	if snap.Overflow || snap.Split {
+		t.Fatalf("expected Overflow=false, Split=false; got %+v", snap)
+	}
+	if snap.EvictedBytes != 0 {
+		t.Fatalf("head bytes must not be treated as evicted: EvictedBytes = %d, want 0", snap.EvictedBytes)
+	}
+	if !bytes.HasPrefix(snap.Full, invalidHead) {
+		t.Fatalf("stream head lost: Full starts with % x, want prefix % x", firstBytes(snap.Full, 4), invalidHead)
+	}
+
+	// 分片路径：总长超过 headMax+tailMax，但 buffer 未溢出。
+	b2 := &ProcBuffer{}
+	long := append(append([]byte{}, invalidHead...), bytes.Repeat([]byte("x"), 200)...)
+	if _, err := b2.Write(long); err != nil {
+		t.Fatal(err)
+	}
+	split := b2.ReadHeadTail(20, 20)
+	if split.Overflow || !split.Split {
+		t.Fatalf("expected Overflow=false, Split=true; got %+v", split)
+	}
+	if split.EvictedBytes != 0 {
+		t.Fatalf("head bytes must not be treated as evicted: EvictedBytes = %d, want 0", split.EvictedBytes)
+	}
+	if !bytes.HasPrefix(split.Head, invalidHead) {
+		t.Fatalf("split path lost the stream head: Head starts with % x, want prefix % x", firstBytes(split.Head, 4), invalidHead)
+	}
+}
+
+// TestReadFromZeroOffsetDoesNotSkipInvalidHead 覆盖 prefix 分页第一页。
+func TestReadFromZeroOffsetDoesNotSkipInvalidHead(t *testing.T) {
+	b := &ProcBuffer{}
+	if _, err := b.Write(append(append([]byte{}, invalidHead...), []byte("abcdef")...)); err != nil {
+		t.Fatal(err)
+	}
+	res := b.ReadFrom(0, 4)
+	if res.SkippedBytes != 0 {
+		t.Fatalf("offset 0 must not skip anything, SkippedBytes = %d, want 0", res.SkippedBytes)
+	}
+	if res.NextBaseOffset != 0 {
+		t.Fatalf("NextBaseOffset = %d, want 0", res.NextBaseOffset)
+	}
+	if !bytes.HasPrefix(res.Data, invalidHead) {
+		t.Fatalf("page 1 lost the stream head: Data starts with % x, want prefix % x", firstBytes(res.Data, 4), invalidHead)
+	}
+}
+
+// TestReadTailKeepsInvalidUTF8Head 覆盖 tail 模式（整段装得下时 BeforeBytes 必须为 0）。
+func TestReadTailKeepsInvalidUTF8Head(t *testing.T) {
+	b := &ProcBuffer{}
+	whole := append(append([]byte{}, invalidHead...), []byte("abc")...)
+	if _, err := b.Write(whole); err != nil {
+		t.Fatal(err)
+	}
+	snap := b.ReadTail(1024)
+	if snap.BeforeBytes != 0 {
+		t.Fatalf("BeforeBytes = %d, want 0 (head must not be skipped)", snap.BeforeBytes)
+	}
+	if !bytes.Equal(snap.Data, whole) {
+		t.Fatalf("ReadTail returned % x, want % x", snap.Data, whole)
+	}
+}
+
+// TestAlignmentStillAppliesMidStream 反向确认：没有把 offset>0 的对齐一起砍掉。
+// 缺了它，上面的修复可能变成「对齐功能被删光」也照样绿。
+func TestAlignmentStillAppliesMidStream(t *testing.T) {
+	// "中" = E4 B8 AD；ReadFrom(2) 落在该字符的第 2 个 continuation 字节上。
+	b := &ProcBuffer{}
+	if _, err := b.Write([]byte("a中b")); err != nil {
+		t.Fatal(err)
+	}
+	res := b.ReadFrom(2, 16)
+	if res.SkippedBytes != 2 {
+		t.Fatalf("mid-stream offset must still align: SkippedBytes = %d, want 2", res.SkippedBytes)
+	}
+	if !utf8.Valid(res.Data) {
+		t.Fatalf("aligned window must be valid UTF-8, got % x", res.Data)
+	}
+	if string(res.Data) != "b" {
+		t.Fatalf("aligned window = %q, want %q", res.Data, "b")
+	}
+
+	// ReadHeadTail 在真覆写（start > 0）且覆写点落字符中间时仍要对齐。
+	// MaxBytes=4、写 "中中"（6 B）⇒ start=2 落在第 1 个「中」的末字节上。
+	w := &ProcBuffer{MaxBytes: 4}
+	if _, err := w.Write([]byte("中中")); err != nil {
+		t.Fatal(err)
+	}
+	snap := w.ReadHeadTail(maxHeadTailProbe, maxHeadTailProbe)
+	if !snap.Overflow {
+		t.Fatalf("expected Overflow=true, got %+v", snap)
+	}
+	if snap.EvictedBytes != 3 {
+		// 2 字节被环缓冲覆写 + 1 字节对齐跳过。
+		t.Fatalf("EvictedBytes = %d, want 3 (= ring start 2 + 1 byte alignment)", snap.EvictedBytes)
+	}
+	if !utf8.Valid(snap.Full) {
+		t.Fatalf("retained window must be valid UTF-8, got % x", snap.Full)
+	}
+}
+
+// maxHeadTailProbe 让「整段都装得下」在默认 ring 下成立。
+const maxHeadTailProbe = 1 << 20
+
+// firstBytes returns the first n bytes of b, for failure messages.
+func firstBytes(b []byte, n int) []byte {
+	if len(b) < n {
+		return b
+	}
+	return b[:n]
+}

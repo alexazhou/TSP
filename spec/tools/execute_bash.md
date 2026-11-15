@@ -185,7 +185,16 @@ Truncation keeps **both ends**: the head keeps context (up to the first 200 line
 ... (35712 bytes earlier output evicted by buffer; 516288 bytes omitted) ...
 ```
 
-> **`N` is a real byte count, not an alignment artefact.** It is the total bytes permanently unavailable before the retained range: the ring overwrite **plus** up to 3 bytes skipped for UTF-8 alignment (`api/process.go:303`, `EvictedBytes = alignCeil(start)`). A long-running command therefore shows a large `N` (e.g. `560000 − 512 KB = 35712`), not `0`. `*_overflow: true` stays the explicit flag; the two can disagree only in one edge case — a stream that **starts** with invalid UTF-8 continuation bytes can skip 1–3 bytes without any overflow, giving a small `N` while `*_overflow` is absent.
+> **`N` is a real byte count, not an alignment artefact.** It is the total bytes permanently unavailable before the retained range: the ring overwrite **plus** up to 3 bytes skipped for UTF-8 alignment (`api/process.go:303`, `EvictedBytes = alignCeil(start)`). A long-running command therefore shows a large `N` (e.g. `560000 − 512 KB = 35712`), not `0`. Since the alignment skip can only happen at a real page boundary (`offset > 0`), `N > 0` now happens **exactly when** the ring overflowed — `*_overflow` and `N` can no longer disagree.
+
+### `stdout` / `stderr` are text, not a binary channel
+
+Both fields are JSON strings, so they can only carry text: when the result is serialized, **every invalid UTF-8 byte becomes U+FFFD** (`EF BF BD`) — one bad byte turns into three. Two consequences:
+
+- **Byte-exact round-tripping only holds for valid UTF-8 output.** For binary/GBK/partial-rune output the corruption already happens in the JSON layer, before any of the buffer logic.
+- **Never use `stdout` to carry binary data.** Write it to a file and read it back with `read_file`, or `base64`-encode it.
+
+What the buffer no longer does is drop bytes *before* that serialization: the **stream head is never treated as mid-character**, so even when the first byte is a UTF-8 continuation byte (`0x80`–`0xBF`) all leading bytes are returned (see `TestInvalidUTF8StreamHeadIsNotDropped`). Pagination skips for alignment still apply at genuine mid-stream page boundaries, where the skipped bytes are re-readable on the next page only if the writer's stream was valid UTF-8 there.
 
 `truncated: true` therefore means "text was clipped **or** the buffer evicted older bytes" — it never means the tail was dropped: the tail is always preserved.
 

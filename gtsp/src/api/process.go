@@ -193,7 +193,19 @@ func (b *ProcBuffer) copyRangeLocked(dst []byte, offset int64, count int) int {
 
 // alignCeilLocked advances offset past UTF-8 continuation bytes so a window
 // never starts in the middle of a multi-byte character.
+//
+// offset == 0 is the stream head and is therefore always a character boundary:
+// there is no preceding character that the byte at 0 could be a continuation
+// of. Skipping there would be wrong, because a stream is NOT guaranteed to be
+// valid UTF-8 -- the first byte may legitimately be 0x80-0xBF (binary output,
+// GBK logs, a writer that emitted half a rune). Without the early return, such
+// a head loses 1-3 bytes for good (an alignment skip at the start is
+// unrecoverable, unlike the end-of-window trim, whose bytes are re-read on the
+// next page) and the loss is misreported as "bytes evicted by buffer".
 func (b *ProcBuffer) alignCeilLocked(offset int64) int64 {
+	if offset <= 0 {
+		return offset
+	}
 	for offset < b.totalBytes && len(b.buf) > 0 {
 		if b.buf[b.physOfLocked(offset)]&0xC0 != 0x80 {
 			break

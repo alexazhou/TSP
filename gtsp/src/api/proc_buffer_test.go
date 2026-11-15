@@ -457,3 +457,49 @@ func NewBPForTest(session string) *BackgroundProcess {
 		Stderr:    &ProcBuffer{},
 	}
 }
+
+// TestReadFromPageSizeDeviationAtMostThreeBytes 钉住「页大小不是精确值」这条契约：
+// 为避免跨页切断 rune，ReadFrom 在页边界做终点对齐，因此单页返回可能比
+// maxReadBytes 多或少至多 UTFMax-1 = 3 字节。**任何按 len(page) == window 写判据
+// 的代码都是错的** —— 这个上界本身就是契约的一部分。
+func TestReadFromPageSizeDeviationAtMostThreeBytes(t *testing.T) {
+	b := &ProcBuffer{MaxBytes: 8192}
+	// 纯多字节流、没有换行：每个窗口边界都会落在 rune 中间。
+	stream := []byte(strings.Repeat("中文行", 4000)) // 9 B * 4000
+	if _, err := b.Write(stream); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, window := range []int{1, 2, 3, 4, 7, 10, 100, 1024} {
+		total := b.Stats().TotalBytes
+		offset := int64(0)
+		// 统计实际发生偏差的页数：若一页都没偏差，本用例就是空判据。
+		deviatedPages := 0
+		for offset < total {
+			res := b.ReadFrom(offset, window)
+			if len(res.Data) == 0 {
+				t.Fatalf("window=%d: empty page at %d", window, offset)
+			}
+			last := res.NextBaseOffset+int64(len(res.Data)) >= total
+			deviation := len(res.Data) - window
+			if deviation < 0 {
+				deviation = -deviation
+			}
+			if deviation > 0 {
+				deviatedPages++
+			}
+			if !last && deviation > utf8.UTFMax-1 {
+				t.Fatalf("window=%d offset=%d: page returned %d bytes, deviation %d > %d",
+					window, offset, len(res.Data), deviation, utf8.UTFMax-1)
+			}
+			if !utf8.Valid(res.Data) {
+				t.Fatalf("window=%d offset=%d: page is not valid UTF-8", window, offset)
+			}
+			offset = res.NextBaseOffset + int64(len(res.Data))
+		}
+		// 这些窗口都非 3 的倍数，必然在某个 rune 中间切过，必须观察到偏差。
+		if window != 3 && deviatedPages == 0 {
+			t.Fatalf("window=%d: no page deviated from the window size; the contract is not exercised", window)
+		}
+	}
+}

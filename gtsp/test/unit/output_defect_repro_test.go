@@ -1,6 +1,6 @@
 package unit_test
 
-// 本文件钉住 `gtsp/doc/process-output-optimization.md` §1 列出的四条原缺陷。
+// 本文件钉住 `gtsp/doc/design/process-output-optimization.md` §1 列出的四条原缺陷。
 //
 // 断言一律按**修复后的期望行为**书写，因此在 `efe6b3a`（改前）上必须**全红**，
 // 改后必须全绿 —— 这是任务 #260「改前必红」的承重证据，不是「改后绿」的自证。

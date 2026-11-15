@@ -2,7 +2,7 @@
 
 > **适用版本**：gtsp **v0.4.19 及之后**
 > **撰写日期**：2026-11-14
-> **关联文档**：[仓库根 `process_group_cleanup.md`](../../process_group_cleanup.md)（改进方案，含 2026-11-14 孤儿进程事故记录与待实施项）、[windows-busybox-integration.md](./windows-busybox-integration.md)（Windows 平台壳层与进程树清理）
+> **关联文档**：[仓库根 `process_group_cleanup.md`](../../../process_group_cleanup.md)（改进方案，含 2026-11-14 孤儿进程事故记录与待实施项）、[windows-busybox-integration.md](./windows-busybox-integration.md)（Windows 平台壳层与进程树清理）
 > **注意**：本文描述**当前已实现**的机制；标注 ⚠️ 的是已知缺口，均已在 `process_group_cleanup.md` 中立项，本文不重复方案细节。
 
 ---

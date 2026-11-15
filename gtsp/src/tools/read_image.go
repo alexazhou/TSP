@@ -14,7 +14,7 @@ import (
 	"os"
 )
 
-// ReadImageParams defines input for read_image according to doc/tool_spec/read_image.md
+// ReadImageParams defines input for read_image according to doc/design/tool_spec/read_image.md
 type ReadImageParams struct {
 	FilePath string `json:"file_path"`
 }

@@ -159,7 +159,7 @@ When the shell exits but descendant processes (`&`, daemons) are still running, 
 | `leftover_processes` | `object` | `{alive, tree: {pid, ppid, command, alive, children}}`. Descendants that already re-parented to PID 1 are still listed while they remain in the command's process group. |
 | `stdout_offset` / `stderr_offset` | `integer` | Cursors for continuing to read this process's output via `process_output`. |
 
-> **Known limitation:** leftover detection follows the command's **process group**. A descendant that creates its own process group or session (e.g. `timeout` without `--foreground`, `setsid`, most daemons) leaves the group and will not be reported. See `gtsp/doc/process-output-optimization.md` and the probe report for details.
+> **Known limitation:** leftover detection follows the command's **process group**. A descendant that creates its own process group or session (e.g. `timeout` without `--foreground`, `setsid`, most daemons) leaves the group and will not be reported. See `gtsp/doc/design/process-output-optimization.md` and the probe report for details.
 
 Use [`process_output`](./process_output.md) to retrieve output and check whether the process has finished. Use [`process_stop`](./process_stop.md) to terminate it, and [`process_list`](./process_list.md) to see all currently running background processes.
 

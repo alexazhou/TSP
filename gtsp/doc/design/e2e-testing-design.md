@@ -5,7 +5,7 @@
 > **更新**：2026-11-14 吸收 review 意见：S2 标注待实现并移出本期、S1 改用启动参数/sandbox RPC 下发、M1 断言对齐现有 KillSession 语义、L9 保留在 integration、TestMain 单次编译 + 每用例 --log-path、osSurvivors 改 PID 探测、P9 去 python 依赖、P5 显式超时、§5 第二批前置依赖已落地（commit 9c208d0）
 > **更新**：2026-11-14 review 二次修正：§7/§2 osSurvivors 表述对齐（去 pgrep/tasklist 残留）、Windows OpenProcess 判活须加 WaitForSingleObject 二次确认、§5 第三批编号 L3–L8
 > **撰写日期**：2026-11-14
-> **关联文档**：[child-process-reclamation.md](./child-process-reclamation.md)（子进程回收机制）、[../process_group_cleanup.md](../process_group_cleanup.md)（孤儿进程清理方案）、[windows-busybox-integration.md](./windows-busybox-integration.md)
+> **关联文档**：[child-process-reclamation.md](./child-process-reclamation.md)（子进程回收机制）、[../../process_group_cleanup.md](../../process_group_cleanup.md)（孤儿进程清理方案）、[windows-busybox-integration.md](./windows-busybox-integration.md)
 > **动机**：现有 CI（`test-gtsp.yml`）几乎全是进程内测试（import 源码直接调 Handler/函数），只有 `test/e2e/read_image_test.go` 一例真实进程黑盒测试，且仅覆盖单工具单场景；`script/test_script/` 下的 Python 脚本未接 CI、路径硬编码已失效。进程内测试验证不了：stdio 行协议、stdin EOF 停机、信号处理、真实进程树中的进程组行为、多会话隔离——这些恰恰是 gtsp 作为**子进程管理器**的核心职责。
 
 ---

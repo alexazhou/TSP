@@ -11,7 +11,7 @@ import (
 
 const defaultListDirLimit = 50
 
-// ListDirParams defines input for list_dir according to doc/tool_spec/list_dir.md
+// ListDirParams defines input for list_dir according to doc/design/tool_spec/list_dir.md
 type ListDirParams struct {
 	Path           string   `json:"dir_path"`
 	Recursive      bool     `json:"recursive,omitempty"`

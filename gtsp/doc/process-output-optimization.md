@@ -82,10 +82,10 @@
 - `utf8Floor(b []byte, limit int) int` / `utf8Ceil(b []byte, start int) int`：保证切片边界不切断多字节 UTF-8 字符。
 
 #### 统一 `clipped` 判定与 `truncated` 口径
-所有模式统一返回布尔值 `clipped`（表示**本次请求范围内的输出文本被裁剪**），最终 `truncated = clipped || overflow`：
-- **Head+Tail 模式**：发生 Head/Tail 拆分或行/字节裁剪时 `clipped = true`（`!split && !overflow` 且未超限直接返回时 `clipped = false`）。
-- **Prefix 模式**：`hasClip = (next_offset < totalBytes)`（有剩余未交付字节即触发 trailing marker 与 `clipped = true`）。
-- **Tail 模式**：发生 50 KB 字节裁剪（`hasByteTrunc`），或受 `64 KB` 窗口/`512 KB` 缓冲限制导致返回行数少于 `min(目标行数, 进程历史总行数)`（即 `beforeBytes > 0 && returnedLines < targetLines`）时，`clipped = true`；若请求 `tail_lines: 100` 且这 100 行完整落在 `64 KB` 窗口与 `50 KB` 限制内，则 `clipped = false`（仅当 `overflow == true` 时 `truncated` 才因 `overflow` 为 `true`）。
+所有模式统一返回布尔值 `clipped`（表示**本次请求范围内有内容被丢弃或无法完整返回**），最终 `truncated = clipped || overflow`；**与是否输出“提示/翻页 marker”解耦**：
+- **Head+Tail 模式**：`clipped = (split || 行数超限 || 字节裁剪)`（快速路径为 `false`）；提示由合并 marker 自己表达。
+- **Prefix 模式**：`clipped = (offsetExpired || deliveredBytes < len(data))`（无损翻页时 `deliveredBytes == len(data)`，因此 `truncated: false`；而 trailing marker 独立由 `next_offset < totalBytes` 触发）。
+- **Tail 模式**：`clipped = hasByteTrunc`（仅当触发 50 KB 字节裁剪时置 `true`；开头提示 marker 仍独立由 `omittedBefore > 0` 触发）。
 
 #### 三种模式的确定性步骤（所有裁剪策略集中在 tools 层单遍完成）
 
@@ -99,20 +99,19 @@
      - 合并为单个 marker：`headPrefix + marker + tailSuffix`。marker 只报字节数（`... (<omittedBytes> bytes omitted) ...`，若 `overflow` 则同时注明 `evictedBytes`），不扫描统计 `middleLines`。
 
 2. **连续前缀模式（显式传 `offset` 增量分页）**：
-   - 调用 `ReadFrom(offset, maxOutputBytes)`。
+   - 预留 `markerBudget`：令 `avail = maxOutputBytes - markerBudget`（若 `totalBytes - offset <= maxOutputBytes` 且未过期且不超 1000 行，无任何 marker 时可用满 `maxOutputBytes`）。调用 `ReadFrom(offset, avail)`（这样无损 50 KB 级分页时 `len(data) <= avail`，正常页不会误触 `deliveredBytes < len(data)`）。
    - **直接在源字节切片 `data` 上按 `\n` 位置定位行边界**（不经 `splitLines` + `Join` 重组），确保 `deliveredBytes` 等于保留前缀在源流中覆盖的**精确字节数（含最后一行行尾 `\n`）**。
-   - 若 `hasEviction = readResult.offsetExpired` 或超 `1000` 行或超 `maxOutputBytes`，预留 `markerBudget`（`avail = maxOutputBytes - markerBudget`）。
    - 先定位前 `1000` 行的字节结束位置 `lineEnd`，再取 `cut = min(lineEnd, avail)` 并用 `utf8Floor` 对齐得 `deliveredBytes`。
    - **严格前进兜底**：当 `len(data) > 0` 且 `deliveredBytes == 0`（例如极罕见场景）时，至少前进 1 个完整 rune；最终令 `next_offset = min(readResult.nextBaseOffset + deliveredBytes, totalBytes)`（当 `offset >= totalBytes` 时 `next_offset = offset`）。
-   - 令 `hasClip = (next_offset < totalBytes)`，即 `clipped = hasClip`。
-   - 若 `hasEviction`，开头加 `... (<skippedBytes> bytes evicted by buffer before this point) ...\n`；若 `!hasEviction && readResult.skippedBytes > 0`（非 rune 对齐跳过），开头加 `... (<skippedBytes> bytes skipped for UTF-8 alignment) ...\n`（同时计入 `markerBudget`）；若 `hasClip`，末尾加 `\n... (<remainingBytes> bytes remaining in buffer) ...`（`remainingBytes = totalBytes - next_offset`）。
+   - 令 `clipped = (readResult.offsetExpired || deliveredBytes < len(data))`；令 `hasMore = (next_offset < totalBytes)`。
+   - 若 `hasEviction = readResult.offsetExpired`，开头加 `... (<skippedBytes> bytes evicted by buffer before this point) ...\n`；若 `!hasEviction && readResult.skippedBytes > 0`（非 rune 对齐跳过），开头加 `... (<skippedBytes> bytes skipped for UTF-8 alignment) ...\n`（同时计入 `markerBudget`）；若 `hasMore`，末尾加 `\n... (<remainingBytes> bytes remaining in buffer) ...`（`remainingBytes = totalBytes - next_offset`）。
 
 3. **纯尾部模式（`process_output` 默认模式 & 显式传 `tail_lines`）**：
    - 同时作用于 `stdout` 和 `stderr`；**只按 `\n` 分行**（`\r` 刷新型进度条不拆行）。
    - 设 `targetLines`：传了 `tail_lines` 时为 `tail_lines`，默认不传时为 `1000`。
    - 调用 `ReadTail(64 * 1024)`，取至多最后 `targetLines` 行，且总字节严格 `≤ 50 KB`（**若单行很长，受 50 KB / 64 KB 窗口上限约束，实际返回行数可能少于 `targetLines`**）。
    - 若选中行字节数超过 `avail`（存在 `beforeBytes > 0` 或字节超限时扣除 `markerBudget`），用 `utf8Ceil` 取后缀，记 `hasByteTrunc = true`，并把跳过的字节计入总前部未返回字节 `omittedBefore`。
-   - `clipped = hasByteTrunc || (beforeBytes > 0 && returnedLines < targetLines)`。
+   - `clipped = hasByteTrunc`。
    - 若 `omittedBefore > 0`（包括 `beforeBytes > 0` 且无法确认完整覆盖），在开头输出**单一合并 marker**：
      `... (<omittedBefore> bytes earlier output omitted/evicted) ...\n`。
    - **引导说明**：`process_output` 默认采用此模式（直接看最新结果，不再重复拉取 20% 头部）；若需查看开头，显式传 `stdout_offset: 0` / `stderr_offset: 0`。
@@ -154,7 +153,7 @@
 | `stdout` / `stderr` | `string` | 截取后的输出文本（可能含 marker，故 `len(stdout)` 不等于 `deliveredBytes`，**必须使用返回的 `*_offset` 作为下次游标，不可用字符串长度推算**）。 |
 | `running` | `boolean` | `!bp.IsDone() \|\| hasLeftover`。 |
 | `exit_code` | `integer \| null` | 仅当 `running == false` 时返回退出码；主进程已退出但仍有后代存活时为 `null`。 |
-| `truncated` | `boolean` | 流级完整标志：`本次响应被裁剪 \|\| stdout_overflow \|\| stderr_overflow`。 |
+| `truncated` | `boolean` | 流级完整标志：`clipped \|\| stdout_overflow \|\| stderr_overflow`。 |
 | `stdout_offset` / `stderr_offset` | `integer` | 续读游标。 |
 | `stdout_overflow` / `stderr_overflow` | `boolean` | `omitempty`。对应流缓冲是否发生过覆盖（Phase 2 文件缓冲全量保留时为 `false`）。 |
 | `stdout_offset_expired` / `stderr_offset_expired` | `boolean` | `omitempty`。传入的 `offset` 是否落入已被覆盖的 `[0, startOffset)` 区间。**即使为 `true`，本次返回的 `*_offset` 依然是有效新游标，下次应继续传入该值（不要重置回 0）。** |
@@ -164,9 +163,9 @@
 
 | 参数组合 | `stdout` / `stderr` 行为 | `*_offset` 返回值 | `truncated` | `*_offset_expired` | 校验与报错 |
 |---|---|---|---|---|---|
-| 均不传（默认尾部模式） | 各自走纯尾部模式（至多最新 1000 行且 ≤ 50 KB） | `totalBytes` | `裁剪 \|\| *_overflow` | `false`（省略） | `process_id == ""` → `protocol/invalid_params` |
-| 仅传 `stdout_offset` | `stdout` 按前缀分页；`stderr` 走默认尾部模式 | `stdout_offset = min(nextBaseOffset + deliveredBytes, totalBytes)`（`offset >= totalBytes` 时原样回显）；`stderr_offset = stderr_total` | `裁剪 \|\| *_overflow` | `stdout` 按 `offset < startOffset` 判定；`stderr` 省略 | `offset < 0` → `protocol/invalid_params` |
-| 传 `tail_lines` | 各自取最后 N 行（仅按 `\n` 分行），超 50 KB 做纯尾部截断 | `totalBytes` | `裁剪 \|\| *_overflow` | `false`（省略） | `tail_lines <= 0` → `protocol/invalid_params` |
+| 均不传（默认尾部模式） | 各自走纯尾部模式（至多最新 1000 行且 ≤ 50 KB） | `totalBytes` | `clipped \|\| *_overflow` | `false`（省略） | `process_id == ""` → `protocol/invalid_params` |
+| 仅传 `stdout_offset` | `stdout` 按前缀分页；`stderr` 走默认尾部模式 | `stdout_offset = min(nextBaseOffset + deliveredBytes, totalBytes)`（`offset >= totalBytes` 时原样回显）；`stderr_offset = stderr_total` | `clipped \|\| *_overflow` | `stdout` 按 `offset < startOffset` 判定；`stderr` 省略 | `offset < 0` → `protocol/invalid_params` |
+| 传 `tail_lines` | 各自取最后 N 行（仅按 `\n` 分行），超 50 KB 做纯尾部截断 | `totalBytes` | `clipped \|\| *_overflow` | `false`（省略） | `tail_lines <= 0` → `protocol/invalid_params` |
 | `tail_lines` 与任一 `*_offset` 同传 | — | — | — | — | 直接返回 `protocol/invalid_params` |
 | `include_output: false`（可配合法 `offset` 或 `tail_lines`） | 跳过截断与过期判定，直接返回 `""` | 调用 `Stats()` 零拷贝返回 `max(passedOffset, totalBytes)`（未传 `offset` 时为 `totalBytes`） | **`stdout_overflow \|\| stderr_overflow`** | 恒为 `false`（省略） | 仍做参数范围与互斥校验（非法报 `protocol/invalid_params`） |
 

@@ -36,8 +36,18 @@ func TestProcess_SyncAndTruncation(t *testing.T) {
 		if trunc, _ := res["truncated"].(bool); !trunc {
 			t.Errorf("expected truncated=true for >1000 lines, got %v", res)
 		}
-		if !strings.Contains(res["stdout"].(string), "truncated") {
-			t.Errorf("expected truncation marker in stdout")
+		out := res["stdout"].(string)
+		// Head+Tail 模式：指向被省略字节数的 marker（不再有 "truncated due to ..." 文案）。
+		if !strings.Contains(out, "bytes omitted") {
+			t.Errorf("expected head+tail omission marker in stdout, got tail=%q", out)
+		}
+		// 而且尾部必须真的保住：截断不能把最新结果丢掉。
+		if !strings.Contains(out, "line-1499") {
+			t.Errorf("expected the tail line-1499 to survive truncation, got tail=%q", out)
+		}
+		// 头部也要保住，否则就成了另一种「只保尾」。
+		if !strings.Contains(out, "line-0000") {
+			t.Errorf("expected the head line-0000 to survive truncation, got head=%q", out)
 		}
 	})
 }

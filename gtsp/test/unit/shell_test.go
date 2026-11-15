@@ -111,10 +111,28 @@ func TestExecuteBashHandler(t *testing.T) {
 		if !result.Truncated {
 			t.Error("expected output to be truncated")
 		}
-		if !strings.Contains(result.Stdout, "truncated due to line limit") {
-			t.Errorf("missing truncation message in stdout: %s", result.Stdout)
+		// Head+Tail 模式：头保留上下文、尾保留最新结果，中间以单一 marker 省略。
+		if !strings.Contains(result.Stdout, "bytes omitted") {
+			t.Errorf("missing head+tail omission marker in stdout: %.200s", result.Stdout)
+		}
+		if !strings.Contains(result.Stdout, "Line 2000") {
+			t.Errorf("tail of the output must survive truncation (got tail: %.200s)", tailOf(result.Stdout, 200))
+		}
+		if !strings.Contains(result.Stdout, "Line 1\n") {
+			t.Errorf("head of the output must survive truncation (got head: %.200s)", result.Stdout)
+		}
+		if len(result.Stdout) > 50*1024 {
+			t.Errorf("truncated stdout must stay within 50 KB, got %d bytes", len(result.Stdout))
 		}
 	})
+}
+
+// tailOf returns the last n bytes of s (test helper).
+func tailOf(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[len(s)-n:]
 }
 
 func TestExecuteBash_RunInBackground(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // ExecuteBashParams defines input for execute_bash
@@ -29,14 +30,29 @@ type ExecuteBashResult struct {
 	Message           string                 `json:"message,omitempty"`            // Optional: human-readable status message
 	ProcessID         string                 `json:"process_id,omitempty"`         // Set when descendant processes survive after command exit
 	LeftoverProcesses *pal.LeftoverProcesses `json:"leftover_processes,omitempty"` // Snapshot of surviving descendants
+	// StdoutOffset/StderrOffset are continuation cursors for process_output: pass
+	// them as stdout_offset/stderr_offset to read only what came after this call.
+	StdoutOffset *int64 `json:"stdout_offset,omitempty"`
+	StderrOffset *int64 `json:"stderr_offset,omitempty"`
+	// StdoutOverflow/StderrOverflow report that the ring buffer had to evict older
+	// bytes, i.e. the *beginning* of the stream is gone for good.
+	StdoutOverflow bool `json:"stdout_overflow,omitempty"`
+	StderrOverflow bool `json:"stderr_overflow,omitempty"`
 }
 
 // BashBackgroundResult is returned when a process is running in the background
 type BashBackgroundResult struct {
 	ProcessID string `json:"process_id"`
 	Status    string `json:"status"` // always "running"
-	Stdout    string `json:"stdout"` // partial output captured before promotion
+	Stdout    string `json:"stdout"` // partial output captured before promotion (truncated)
 	Stderr    string `json:"stderr"`
+	Truncated bool   `json:"truncated,omitempty"`
+	// Continuation cursors: pass as stdout_offset/stderr_offset to read only new
+	// output; pass 0 to re-read what is still retained in the buffer.
+	StdoutOffset   int64 `json:"stdout_offset"`
+	StderrOffset   int64 `json:"stderr_offset"`
+	StdoutOverflow bool  `json:"stdout_overflow,omitempty"`
+	StderrOverflow bool  `json:"stderr_overflow,omitempty"`
 }
 
 var ExecuteBashSchema = api.ToolDefinition{
@@ -85,6 +101,21 @@ const (
 	defaultTaskTimeout = 180       // Default timeout in seconds
 	maxOutputBytes     = 50 * 1024 // 50KB limit as per spec
 	maxOutputLines     = 1000      // Line limit for safety
+
+	// markerBudget is reserved per stream so that "cut once" already guarantees
+	// total length <= maxOutputBytes; every marker format below is far below it.
+	markerBudget = 256
+
+	// Head+Tail split (execute_bash sync / timeout-promoted background):
+	// head keeps context, tail keeps the failure/result the agent actually needs.
+	headBudgetPercent = 20
+	headLinesMax      = 200
+	tailLinesMax      = 800
+
+	// tailWindowBytes is the read window for tail mode. It must be >= the 50 KB
+	// output limit + marker budget so tail mode never under-delivers because the
+	// window was too small.
+	tailWindowBytes = 64 * 1024
 )
 
 // executeBashDescription 拼出工具描述。
@@ -102,7 +133,8 @@ func executeBashDescription() string {
 		"- Synchronous mode leftover descendants: if descendant processes forked by the command (e.g., '&' or daemons) are still running after the command exits, they are NOT automatically terminated; the result will include process_id, leftover_processes, and a message so you can terminate them with process_stop or inspect them with process_output (unclaimed processes persist until server shutdown)\n" +
 		"- Prefer run_in_background: true for intentionally long-running tasks (such as starting servers or listening on ports)\n" +
 		"- Use process_output to poll or wait for background process completion\n" +
-		"- Automatically truncates large outputs to protect context window\n" +
+		"- Output is capped per stream at 1000 lines / 50 KB, keeping BOTH the head and the tail (Head+Tail): the head keeps context and the tail keeps the failure/result. Dropped text is replaced by a single marker like '... (N bytes omitted) ...'; if the stream ring buffer had to evict older bytes you also get '... (N bytes earlier output evicted by buffer) ...' and stdout_overflow/stderr_overflow are set\n" +
+		"- When a result carries process_id (timeout promotion or leftover handover) it also carries stdout_offset/stderr_offset: pass them to process_output to read only newer output. Never derive a cursor from len(stdout), because markers make the text longer than the bytes it represents\n" +
 		"- Use this tool when you need to run shell commands, build scripts, run tests, or perform other system-level operations"
 }
 
@@ -179,10 +211,13 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 	if p.RunInBackground {
 		api.GlobalProcessRegistry.Register(bp)
 		return BashBackgroundResult{
-			ProcessID: bp.ID,
-			Status:    "running",
-			Stdout:    "",
-			Stderr:    "",
+			ProcessID:    bp.ID,
+			Status:       "running",
+			Stdout:       "",
+			Stderr:       "",
+			Truncated:    false,
+			StdoutOffset: 0,
+			StderrOffset: 0,
 		}, nil
 	}
 
@@ -220,9 +255,13 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 		// Hand over surviving descendants to the agent without killing them.
 		api.GlobalProcessRegistry.Register(bp)
 		bp.WaitIO(500 * time.Millisecond)
+		stdoutStats := bp.Stdout.Stats()
+		stderrStats := bp.Stderr.Stats()
 		result := buildSyncResult(bp)
 		result.ProcessID = bp.ID
 		result.LeftoverProcesses = leftover
+		result.StdoutOffset = &stdoutStats.TotalBytes
+		result.StderrOffset = &stderrStats.TotalBytes
 		result.Message = "command exited but descendant process(es) are still running; " +
 			"use process_stop to terminate, or process_output to poll; " +
 			"unclaimed processes persist until server shutdown"
@@ -242,45 +281,320 @@ func ExecuteBashHandler(session api.Session, params json.RawMessage) (interface{
 			return result, nil
 		default: // "background"
 			api.GlobalProcessRegistry.Register(bp)
+			// Promotion must truncate too: the raw buffer can hold ~1 MB across
+			// both streams, which would blow the agent's context window.
+			// Cursor first, content second: if more output lands in between, the
+			// cursor stays behind the text (re-read = duplicate) instead of ahead
+			// of it (which would silently skip bytes).
+			stdoutStats := stdoutBuf.Stats()
+			stderrStats := stderrBuf.Stats()
+			stdoutStr, stdoutClipped, stdoutOverflow := renderHeadTail(stdoutBuf)
+			stderrStr, stderrClipped, stderrOverflow := renderHeadTail(stderrBuf)
 			return BashBackgroundResult{
-				ProcessID: bp.ID,
-				Status:    "running",
-				Stdout:    stdoutBuf.String(),
-				Stderr:    stderrBuf.String(),
+				ProcessID:      bp.ID,
+				Status:         "running",
+				Stdout:         stdoutStr,
+				Stderr:         stderrStr,
+				Truncated:      stdoutClipped || stderrClipped || stdoutOverflow || stderrOverflow,
+				StdoutOffset:   stdoutStats.TotalBytes,
+				StderrOffset:   stderrStats.TotalBytes,
+				StdoutOverflow: stdoutOverflow,
+				StderrOverflow: stderrOverflow,
 			}, nil
 		}
 	}
 }
 
 func buildSyncResult(bp *api.BackgroundProcess) ExecuteBashResult {
-	stdoutStr, stdoutTrunc := truncateOutput(bp.Stdout.String())
-	stderrStr, stderrTrunc := truncateOutput(bp.Stderr.String())
+	stdoutStr, stdoutClipped, stdoutOverflow := renderHeadTail(bp.Stdout)
+	stderrStr, stderrClipped, stderrOverflow := renderHeadTail(bp.Stderr)
 	exitCode := bp.GetExitCode()
 	return ExecuteBashResult{
-		Success:   exitCode == 0,
-		Stdout:    stdoutStr,
-		Stderr:    stderrStr,
-		ExitCode:  exitCode,
-		Truncated: stdoutTrunc || stderrTrunc || bp.Stdout.Truncated() || bp.Stderr.Truncated(),
+		Success:        exitCode == 0,
+		Stdout:         stdoutStr,
+		Stderr:         stderrStr,
+		ExitCode:       exitCode,
+		Truncated:      stdoutClipped || stderrClipped || stdoutOverflow || stderrOverflow,
+		StdoutOverflow: stdoutOverflow,
+		StderrOverflow: stderrOverflow,
 	}
 }
 
-func truncateOutput(s string) (string, bool) {
-	truncated := false
+// --------------------------------------------------------------------------- #
+// 截断：三种模式共用一套辅助，全部单遍完成
+//
+//   Head+Tail : execute_bash 同步完成 / 超时转后台
+//   Prefix    : process_output 显式 offset 增量分页
+//   Tail      : process_output 默认模式 / tail_lines
+//
+// 统一口径：
+//   clipped  = 本次请求范围内有内容被丢弃或无法完整返回
+//   truncated = clipped || overflow（overflow = 缓冲已覆盖最老字节）
+//   clipped 与「是否输出 marker」解耦：无损翻页时 clipped=false 仍可能有尾部续读 marker。
+// --------------------------------------------------------------------------- #
 
-	// 1. Line truncation
+// utf8FloorByteLen returns the largest length <= limit that does not split a rune.
+func utf8FloorByteLen(b []byte, limit int) int {
+	if limit >= len(b) {
+		return len(b)
+	}
+	if limit <= 0 {
+		return 0
+	}
+	for limit > 0 && b[limit]&0xC0 == 0x80 {
+		limit--
+	}
+	return limit
+}
+
+// utf8CeilStart returns the first index >= start that is not a continuation byte.
+func utf8CeilStart(b []byte, start int) int {
+	if start <= 0 {
+		return 0
+	}
+	if start >= len(b) {
+		return len(b)
+	}
+	for start < len(b) && b[start]&0xC0 == 0x80 {
+		start++
+	}
+	return start
+}
+
+// splitLines splits on '\n' and drops the empty string produced by a trailing
+// newline. A partial last line counts as one line.
+func splitLines(s string) []string {
+	if s == "" {
+		return nil
+	}
 	lines := strings.Split(s, "\n")
-	if len(lines) > maxOutputLines {
-		lines = lines[:maxOutputLines]
-		s = strings.Join(lines, "\n") + "\n... (further output truncated due to line limit)"
-		truncated = true
+	if n := len(lines); n > 0 && lines[n-1] == "" {
+		lines = lines[:n-1]
+	}
+	return lines
+}
+
+// firstNLines keeps at most the first n lines (including their newlines).
+func firstNLines(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	seen := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] != '\n' {
+			continue
+		}
+		seen++
+		if seen >= n {
+			return s[:i+1]
+		}
+	}
+	return s
+}
+
+// tailFromLastLines returns the suffix covering at most the last n lines,
+// starting on a line boundary. A trailing newline does not create a phantom line.
+func tailFromLastLines(b []byte, n int) []byte {
+	if n <= 0 || len(b) == 0 {
+		return nil
+	}
+	i := len(b) - 1
+	if b[i] == '\n' {
+		i--
+	}
+	seen := 0
+	for ; i >= 0; i-- {
+		if b[i] != '\n' {
+			continue
+		}
+		seen++
+		if seen >= n {
+			return b[i+1:]
+		}
+	}
+	return b
+}
+
+// renderHeadTail implements the Head+Tail mode in a single pass.
+func renderHeadTail(b *api.ProcBuffer) (text string, clipped bool, overflow bool) {
+	snap := b.ReadHeadTail(maxOutputBytes, maxOutputBytes)
+	overflow = snap.Overflow
+
+	evictedMarker := func() string {
+		return fmt.Sprintf("... (%d bytes earlier output evicted by buffer) ...\n", snap.EvictedBytes)
 	}
 
-	// 2. Byte truncation
-	if len(s) > maxOutputBytes {
-		s = s[:maxOutputBytes] + "\n... (further output truncated due to byte limit)"
-		truncated = true
+	if !snap.Split {
+		full := string(snap.Full)
+		if len(splitLines(full)) <= maxOutputLines && len(full) <= maxOutputBytes {
+			if snap.EvictedBytes == 0 {
+				return full, false, overflow
+			}
+			// Fast path with an eviction notice: only when the notice still fits,
+			// otherwise the notice itself would push us over 50 KB and clamping
+			// would eat the tail we are trying to protect.
+			if len(full) <= maxOutputBytes-markerBudget {
+				return evictedMarker() + full, false, overflow
+			}
+		}
 	}
 
-	return s, truncated
+	avail := maxOutputBytes - markerBudget
+	headBudget := avail * headBudgetPercent / 100
+	tailBudget := avail - headBudget
+
+	headSrc, tailSrc := snap.Head, snap.Tail
+	if !snap.Split {
+		headSrc, tailSrc = snap.Full, snap.Full
+	}
+
+	headText := firstNLines(string(headSrc), headLinesMax)
+	if len(headText) > headBudget {
+		headText = headText[:utf8FloorByteLen([]byte(headText), headBudget)]
+	}
+
+	tailBytes := tailFromLastLines(tailSrc, tailLinesMax)
+	if len(tailBytes) > tailBudget {
+		tailBytes = tailBytes[utf8CeilStart(tailBytes, len(tailBytes)-tailBudget):]
+	}
+
+	retained := snap.MiddleBytes + int64(len(snap.Head)) + int64(len(snap.Tail))
+	if !snap.Split {
+		retained = int64(len(snap.Full))
+	}
+	omitted := retained - int64(len(headText)) - int64(len(tailBytes))
+	if omitted < 0 {
+		omitted = 0
+	}
+
+	marker := fmt.Sprintf("... (%d bytes omitted) ...", omitted)
+	if snap.Overflow {
+		marker = fmt.Sprintf("... (%d bytes earlier output evicted by buffer; %d bytes omitted) ...",
+			snap.EvictedBytes, omitted)
+	}
+
+	var sb strings.Builder
+	sb.Grow(headBudget + tailBudget + markerBudget)
+	sb.WriteString(headText)
+	if headText != "" && !strings.HasSuffix(headText, "\n") {
+		sb.WriteString("\n")
+	}
+	sb.WriteString(marker)
+	sb.WriteString("\n")
+	sb.Write(tailBytes)
+	return clampToOutputLimit(sb.String()), true, overflow
+}
+
+// renderTail implements the tail-only mode (process_output default & tail_lines).
+func renderTail(b *api.ProcBuffer, targetLines int) (text string, clipped bool, overflow bool) {
+	if targetLines <= 0 || targetLines > maxOutputLines {
+		targetLines = maxOutputLines
+	}
+	snap := b.ReadTail(tailWindowBytes)
+	overflow = snap.Overflow
+
+	sel := snap.Data
+	before := snap.BeforeBytes
+	if trimmed := tailFromLastLines(sel, targetLines); len(trimmed) < len(sel) {
+		before += int64(len(sel) - len(trimmed))
+		sel = trimmed
+	}
+
+	budget := maxOutputBytes
+	if before > 0 {
+		budget = maxOutputBytes - markerBudget
+	}
+
+	hasByteTrunc := false
+	if len(sel) > budget {
+		start := utf8CeilStart(sel, len(sel)-budget)
+		before += int64(start)
+		sel = sel[start:]
+		hasByteTrunc = true
+	}
+
+	out := string(sel)
+	if before > 0 {
+		out = fmt.Sprintf("... (%d bytes earlier output omitted/evicted) ...\n", before) + out
+	}
+	return clampToOutputLimit(out), hasByteTrunc, overflow
+}
+
+// renderPrefix implements the explicit-offset sequential pagination mode.
+//
+// deliveredBytes is always a precise byte count in the source stream (page
+// boundaries may fall inside a line, which is fine: the returned next offset is
+// exactly the right place to resume).
+func renderPrefix(b *api.ProcBuffer, offset int64) (text string, next int64, clipped bool, overflow bool, expired bool, skipped int64) {
+	avail := maxOutputBytes - markerBudget
+	res := b.ReadFrom(offset, avail)
+	overflow = res.Overflow
+
+	if offset >= res.TotalBytes {
+		// Echo the requested offset back: a cursor must never move backwards.
+		return "", offset, false, overflow, false, 0
+	}
+
+	expired = res.OffsetExpired
+	skipped = res.SkippedBytes
+
+	data := res.Data
+	delivered := len(data)
+	// Stop at the maxOutputLines-th line boundary, in the source bytes.
+	seen := 0
+	for i := 0; i < len(data); i++ {
+		if data[i] != '\n' {
+			continue
+		}
+		seen++
+		if seen >= maxOutputLines {
+			delivered = i + 1
+			break
+		}
+	}
+	if delivered > avail {
+		delivered = avail
+	}
+	delivered = utf8FloorByteLen(data, delivered)
+	if len(data) > 0 && delivered == 0 {
+		// Guarantee forward progress even for a single huge rune-sized window.
+		delivered = utf8CeilStart(data, 0)
+		if delivered < len(data) {
+			_, size := utf8.DecodeRune(data[delivered:])
+			delivered += size
+		}
+		if delivered > len(data) {
+			delivered = len(data)
+		}
+	}
+
+	next = res.NextBaseOffset + int64(delivered)
+	if next > res.TotalBytes {
+		next = res.TotalBytes
+	}
+	clipped = expired || delivered < len(data)
+
+	var sb strings.Builder
+	sb.Grow(len(data) + markerBudget)
+	if expired {
+		sb.WriteString(fmt.Sprintf("... (%d bytes evicted by buffer before this point) ...\n", skipped))
+	} else if skipped > 0 {
+		sb.WriteString(fmt.Sprintf("... (%d bytes skipped for UTF-8 alignment) ...\n", skipped))
+	}
+	sb.Write(data[:delivered])
+	if next < res.TotalBytes {
+		sb.WriteString(fmt.Sprintf("\n... (%d bytes remaining in buffer) ...", res.TotalBytes-next))
+	}
+	return clampToOutputLimit(sb.String()), next, clipped, overflow, expired, skipped
+}
+
+// clampToOutputLimit is a structural safety net: every mode above already
+// budgets its output, so this only fires if a future marker format grows.
+func clampToOutputLimit(s string) string {
+	if len(s) <= maxOutputBytes {
+		return s
+	}
+	b := []byte(s)
+	cut := utf8FloorByteLen(b, maxOutputBytes)
+	return string(b[:cut])
 }

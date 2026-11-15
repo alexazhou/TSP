@@ -126,8 +126,12 @@ func TestSyncOutputCompletenessNearPipeBuffer(t *testing.T) {
 			t.Fatalf("iteration %d failed: %v", i, err)
 		}
 		result := res.(tools.ExecuteBashResult)
-		if !strings.Contains(result.Stdout, "END_MARKER") && !result.Truncated {
-			t.Fatalf("iteration %d lost tail marker without truncation: len=%d", i, len(result.Stdout))
+		// Head+Tail 截断保证「无论是否截断，尾部一定保住」：截断不再是丢失
+		// 尾部结果的借口。此前这里写成 `!contains && !truncated` 才失败，等于
+		// 一旦 truncated=true 就放过任意丢失 —— 判据形同虚设。
+		if !strings.Contains(result.Stdout, "END_MARKER") {
+			t.Fatalf("iteration %d lost the tail END_MARKER (truncated=%v, len=%d, tail=%q)",
+				i, result.Truncated, len(result.Stdout), tailOf(result.Stdout, 160))
 		}
 	}
 }

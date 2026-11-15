@@ -294,3 +294,57 @@ shasum -a 256 "<path>/gtsp-darwin-arm64"  # 仅在明确同一分发链路内可
 1. **披露完整性**：把改后的 description 单独拿出来，让一个不看代码的人（或另一个 Agent）回答三个问题——「timeout 包装器里的后代能被清理吗」「主体退出后有残留时 running 是什么」「process_stop 对不存在的 id 会怎样」。答不上来即说明描述仍有缺口。
 2. **字段一致性**：对同一组场景各跑一次，逐字段比对「返回体实际出现的 key 集合」与「描述里列出的 key 集合」，要求使用方可见的字段 100% 在描述中出现。
 3. **行为一致性**：`leftover` 场景必须覆盖三种触发方式——同步模式留后代、异步模式主体退出留后代、`process_stop` 清理残留——逐一核对 `running` / `exit_code` / `message` 与描述相符。
+
+---
+
+## 6. 复核追加（基于 `11a1713`，2026-11-15 16:46）
+
+> **本节性质**：只**记录**事实与待办，**不改任何 description 文本**。改描述会改变 Agent 的决策依据，属产品决策，由 Operator 定夺。
+> **与 §2 的关系**：§2 保留原文不动（那是 v0.5.0 视角的快照）。原 #5 已修、#3 部分修，最新状态以本节为准。
+
+### 6.1 与上方「逐条复核」节的关系（不重复）
+
+上方那节由 gtsp 开发补于 `dad259f`，已把 6 条逐条对照、并指出本文 §2.3 与 §3 第 3 条的过时之处（`Returns stdout, stderr, ...` 句式已不存在；`process_id` 现在同步 leftover 也会交接）。**本节不重复复核结论**，只补他没覆盖的两件事：字段披露的完整矩阵（§6.2/6.3）与 N1 表述的边界修正（§6.4）。
+
+他「附带发现 1」与本 §6.3 指向同一处文本，但落点不同：他记的是「本文引用失效」，我记的是「披露缺口的成因」——两者并存，不互为替代。
+
+### 6.2 N2 的实际范围比本文 §1 更大：字段披露矩阵
+
+**量具**：对「Description 字面量切片」做 `grep -ow <field>` 计数（词边界，避免 `stdout_offset` 误匹配 `stdout_offset_expired`）。切片方式：`execute_bash` = `awk '/func executeBashDescription/,/^}/'`；`process_output` = `awk '/Description: "- Retrieves output from a running/,/InputSchema:/'`；`process_list` / `process_stop` = 各自的单行 Description。**「谁真的会返回它」以各工具的 json struct tag 为准，不靠肉眼**。
+
+| 返回字段 | 谁会返回 | `execute_bash` 描述 | `process_output` 描述 | `process_list` 描述 | `process_stop` 描述 |
+|---|---|---|---|---|---|
+| `stderr` | eb / po | **0** | **0** | — | — |
+| `truncated` | eb / po | **0** | **0** | — | — |
+| `leftover_processes` | eb / po | 1 | **0** | — | — |
+| `stdout_overflow` / `stderr_overflow` | eb / po | 1 / 1 | **0 / 0** | — | — |
+| `stdout_offset_expired` / `stderr_offset_expired` | po | **0 / 0** | **0 / 0** | — | — |
+| `exit_code` | eb / po / ps | **0** | 1 | — | 1 |
+| `success` | eb / ps | **0** | — | — | 1 |
+| `status` | eb（后台结构）/ pl | **0** | — | 1 | — |
+| `message` | eb / ps | 1 | — | — | **0** |
+| `started_at` | pl | — | — | **0** | — |
+| `stdout_offset` / `stderr_offset` | eb / po | 1 / 1 | 3 / 3 | — | — |
+
+结论：**`stderr`、`truncated`、`stdout_offset_expired`/`stderr_offset_expired` 在四段描述里全部为 0**；`stderr` 这条尤其反常——v0.5.0 的 `process_output` 描述原本有 `Returns stdout, stderr, running status, and exit code when complete` 一句，重写后该句被删、基础字段反而无人列举。
+
+> 与开发提供表的差异（不影响结论）：`tail_lines` 我测为 3 次（入参名 + `do not combine tail_lines` 提示），其表为 2；其余一致。
+
+### 6.3 N2 的第四个成因：重写描述时丢失了原有的字段列举句
+
+§2.3 只指出「新增字段没写」。复核后发现还有一层：`process_output` 的旧描述有一句集中列举（`Returns stdout, stderr, running status, and exit code`），v0.5.0 之后的重写把它删掉了，改为逐条讲 offset/overflow 协议，于是**基础字段的披露被新内容挤掉**。
+
+⇒ 修复建议（供 Operator 决策，本节不实施）：在 `process_output` 与 `execute_bash` 各加一段集中的 `Result fields:` 清单，按 §6.2 的「工具 × 字段」列，而不是散在句子中；重写描述时保留一节「字段清单」作为不随协议演进而删的骨架。
+
+### 6.4 N1 的准确表述（避免写成绝对对立）
+
+本文初稿的表述「同步看到头+尾、后台只有尾」**不准确**，按开发指正修正：
+
+- `process_output` 默认返回**尾部**（最后 1000 行 / 50 KB），但可通过 `stdout_offset=0`（重读缓冲区仍保留的部分）或 `tail_lines` 拿到头部内容 —— **默认是尾，不是只能拿尾**。
+- `execute_bash` 的 Head+Tail 不限于「纯同步完成」：`task_timeout` 提升为后台时返回的那份快照同样是 Head+Tail。
+- 真正需要点明的差异只有一句：两个工具的**默认**取样区间不同，描述之间缺交叉引用。
+
+### 6.5 本节未做的事
+
+- 未修改任何 `Description` 字符串（见本节开头性质声明）。
+- 未验证新版行为：本次评审所依据的二进制仍是 v0.5.0，`5e46f2b` 的 Head+Tail、`*_offset` 增量读取等新行为**均未实测**，上表全部是「描述文本 vs 结构体字段」的静态核对。新版本二进制出来后需按 §5 的方法复验。

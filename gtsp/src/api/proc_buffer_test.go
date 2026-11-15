@@ -503,3 +503,28 @@ func TestReadFromPageSizeDeviationAtMostThreeBytes(t *testing.T) {
 		}
 	}
 }
+
+// TestReadHeadTailOverflowEvictedBytesASCII verifies that EvictedBytes includes
+// the full overwritten ring prefix (not just rune-alignment bytes) on ASCII data.
+func TestReadHeadTailOverflowEvictedBytesASCII(t *testing.T) {
+	b := &ProcBuffer{MaxBytes: 64}
+	if _, err := b.Write([]byte(strings.Repeat("x", 200))); err != nil {
+		t.Fatal(err)
+	}
+
+	fast := b.ReadHeadTail(100, 100)
+	if !fast.Overflow || fast.Split {
+		t.Fatalf("expected Overflow=true, Split=false; got %+v", fast)
+	}
+	if fast.EvictedBytes != 136 {
+		t.Fatalf("fast path EvictedBytes = %d, want 136", fast.EvictedBytes)
+	}
+
+	split := b.ReadHeadTail(20, 20)
+	if !split.Overflow || !split.Split {
+		t.Fatalf("expected Overflow=true, Split=true; got %+v", split)
+	}
+	if split.EvictedBytes != 136 {
+		t.Fatalf("split path EvictedBytes = %d, want 136", split.EvictedBytes)
+	}
+}

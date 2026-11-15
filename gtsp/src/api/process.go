@@ -74,7 +74,7 @@ type HeadTailSnapshot struct {
 	Tail         []byte // set when split
 	Split        bool
 	MiddleBytes  int64 // bytes between Head and Tail that were not copied
-	EvictedBytes int64 // bytes dropped before Head/Full because of rune alignment
+	EvictedBytes int64 // total bytes evicted before Head/Full (ring start + rune alignment)
 	TotalBytes   int64
 	Overflow     bool
 }
@@ -300,7 +300,7 @@ func (b *ProcBuffer) ReadHeadTail(headMaxBytes, tailMaxBytes int) HeadTailSnapsh
 	start := b.startOffsetLocked()
 	res := HeadTailSnapshot{TotalBytes: b.totalBytes, Overflow: start > 0}
 	alignedStart := b.alignCeilLocked(start)
-	res.EvictedBytes = alignedStart - start
+	res.EvictedBytes = alignedStart
 
 	avail := b.totalBytes - alignedStart
 	if avail <= 0 {

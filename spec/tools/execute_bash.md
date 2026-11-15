@@ -176,16 +176,16 @@ Truncation keeps **both ends**: the head keeps context (up to the first 200 line
 | Form | When |
 |---|---|
 | `... (M bytes omitted) ...` | Head+Tail dropped `M` bytes from the middle; buffer did **not** overflow |
-| `... (N bytes earlier output evicted by buffer) ...` | Short stream that fits the byte/line budget, **but** the ring buffer already overwrote older bytes — emitted only on the fast path (notice prepended to the whole retained range) |
-| `... (N bytes earlier output evicted by buffer; M bytes omitted) ...` | **Both at once** — the ring overflowed **and** Head+Tail dropped a middle chunk. Common for long-running chatty commands |
+| `... (N bytes earlier output evicted by buffer) ...` | Short stream that fits the byte/line budget, **but** the ring buffer already overwrote older bytes — fast path only (notice prepended to the whole retained range). `N` = total evicted before the retained range (ring overwrite + up to 3 B UTF-8 alignment), a **real byte count** |
+| `... (N bytes earlier output evicted by buffer; M bytes omitted) ...` | **Both at once** — the ring overflowed **and** Head+Tail dropped a middle chunk. Common for long-running chatty commands. `N` = total evicted (real count), `M` = omitted middle |
 
 ```
 ... (53248 bytes omitted) ...
 ... (65536 bytes earlier output evicted by buffer) ...
-... (0 bytes earlier output evicted by buffer; 516288 bytes omitted) ...
+... (35712 bytes earlier output evicted by buffer; 516288 bytes omitted) ...
 ```
 
-> **Read the `N` in the combined form carefully.** It counts bytes skipped at the start of the *retained* range for **UTF-8 alignment** (`api/process.go:303`, `EvictedBytes = alignCeil(start) - start`), so it is **usually `0`** even after a real overflow (only **1–3** when the retained range starts mid-character). The two facts you actually need are the `M` (omitted) number and `stdout_overflow: true` — the latter is the authoritative "nothing older is retained" signal, never infer it from `N`.
+> **`N` is a real byte count, not an alignment artefact.** It is the total bytes permanently unavailable before the retained range: the ring overwrite **plus** up to 3 bytes skipped for UTF-8 alignment (`api/process.go:303`, `EvictedBytes = alignCeil(start)`). A long-running command therefore shows a large `N` (e.g. `560000 − 512 KB = 35712`), not `0`. `*_overflow: true` stays the explicit flag; the two can disagree only in one edge case — a stream that **starts** with invalid UTF-8 continuation bytes can skip 1–3 bytes without any overflow, giving a small `N` while `*_overflow` is absent.
 
 `truncated: true` therefore means "text was clipped **or** the buffer evicted older bytes" — it never means the tail was dropped: the tail is always preserved.
 

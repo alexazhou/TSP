@@ -527,7 +527,10 @@ func renderTail(b *api.ProcBuffer, targetLines int) (text string, clipped bool, 
 // exactly the right place to resume).
 func renderPrefix(b *api.ProcBuffer, offset int64) (text string, next int64, clipped bool, overflow bool, expired bool, skipped int64) {
 	avail := maxOutputBytes - markerBudget
-	res := b.ReadFrom(offset, avail)
+	// Read up to avail - utf8.UTFMax so ReadFrom's rune-boundary extension
+	// (up to UTFMax-1 bytes) never pushes len(data) past avail and triggers a
+	// false clipped=true on lossless UTF-8 pagination.
+	res := b.ReadFrom(offset, avail-utf8.UTFMax)
 	overflow = res.Overflow
 
 	if offset >= res.TotalBytes {

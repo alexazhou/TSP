@@ -36,7 +36,7 @@ var ProcessOutputSchema = api.ToolDefinition{
 		"- process_id comes from: execute_bash with run_in_background:true, a task_timeout promotion (timeout_action:'background'), or a sync run that exited but left descendants alive (handover)\n" +
 		"- Default (no stdout_offset/stderr_offset/tail_lines) returns the TAIL of each stream: at most the last 1000 lines and at most 50 KB - i.e. the latest result, not a repeated 20% head\n" +
 		"- Incremental polling: pass back the stdout_offset/stderr_offset you got last time to read only new bytes; pass 0 to re-read what the buffer still retains\n" +
-		"- tail_lines: at most the last N lines (max 1000) of both streams; keep away from tail_lines and *_offset (mutually exclusive)\n" +
+		"- tail_lines: at most the last N lines (max 1000) of both streams; do not combine tail_lines with *_offset (mutually exclusive)\n" +
 		"- include_output:false skips the output entirely (zero-copy) and just advances the cursors - ideal for wait loops\n" +
 		"- block:true (default) waits for the process (and any surviving descendants) to finish, up to timeout ms; timeout > 60000 is clamped to 60000, timeout <= 0 returns immediately\n" +
 		"- Output is bounded by the stream ring buffer and by a 1000 lines / 50 KB per-call truncation limit; markers such as '... (N bytes omitted) ...' are inserted where text was dropped\n" +

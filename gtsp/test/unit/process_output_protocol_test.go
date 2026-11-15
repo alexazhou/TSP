@@ -686,3 +686,67 @@ func TestProcessOutputSchemaAndDescription(t *testing.T) {
 		}
 	}
 }
+
+// TestProcessOutput_LosslessUTF8PaginationDoesNotMarkTruncated verifies that
+// lossless prefix pagination across multi-byte UTF-8 boundaries keeps
+// truncated=false instead of falsely tripping on ReadFrom's rune extension.
+func TestProcessOutput_LosslessUTF8PaginationDoesNotMarkTruncated(t *testing.T) {
+	pinTestShell(t)
+	session := setupShellTestSession()
+
+	// ~60 KB of 3-byte UTF-8 runes across 200 lines (< 1000 lines, < 512 KB ring).
+	cmd := `awk 'BEGIN{s=""; for(j=0;j<100;j++) s=s "中"; for(i=0;i<200;i++) printf "%03d-%s\n", i, s}'`
+	reqBytes, _ := json.Marshal(map[string]interface{}{"command": cmd, "run_in_background": true})
+	raw, err := tools.ExecuteBashHandler(session, reqBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid := raw.(tools.BashBackgroundResult).ProcessID
+
+	// Wait for completion without reading output.
+	waitRes, err := callProcessOutput(t, session, map[string]interface{}{
+		"process_id":     pid,
+		"block":          true,
+		"timeout":        5000,
+		"include_output": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if waitRes.Running || waitRes.StdoutOverflow {
+		t.Fatalf("unexpected state: running=%v overflow=%v", waitRes.Running, waitRes.StdoutOverflow)
+	}
+
+	// Page 1 from offset 0: must not mark truncated=true just because a UTF-8 rune
+	// straddled the page budget boundary.
+	p1, err := callProcessOutput(t, session, map[string]interface{}{
+		"process_id":    pid,
+		"block":         false,
+		"stdout_offset": 0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p1.Truncated {
+		t.Errorf("lossless UTF-8 pagination page 1 should have Truncated=false, got true (offset=%d)", p1.StdoutOffset)
+	}
+	if p1.StdoutOffset <= 0 || p1.StdoutOffset >= waitRes.StdoutOffset {
+		t.Fatalf("expected multi-page split, got p1.StdoutOffset=%d total=%d", p1.StdoutOffset, waitRes.StdoutOffset)
+	}
+
+	// Page 2 from p1.StdoutOffset: finishes cleanly with Truncated=false.
+	p2, err := callProcessOutput(t, session, map[string]interface{}{
+		"process_id":    pid,
+		"block":         false,
+		"stdout_offset": p1.StdoutOffset,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p2.Truncated {
+		t.Errorf("lossless UTF-8 pagination page 2 should have Truncated=false, got true")
+	}
+	if p2.StdoutOffset != waitRes.StdoutOffset {
+		t.Errorf("p2.StdoutOffset = %d, want %d", p2.StdoutOffset, waitRes.StdoutOffset)
+	}
+}

@@ -24,7 +24,7 @@
 | [`tool-description-review.md`](./need_fix/tool-description-review.md) | 李哥（测试工程师）／2026-11-15 | 以 Agent 视角评审**运行时实际注入给 Agent 的 tool description 字符串**（`execute_bash` / `process_list` / `process_output` / `process_stop` 四个工具）：哪些行为「规格里有、注入给 Agent 的描述里没有」，属对外契约披露缺失。方法只以「描述文本 + 实机返回体」为证据，不参考实现代码 |
 | [`encoding-and-binary-output.md`](./need_fix/encoding-and-binary-output.md) | gtsp dev／2026-11-15（源自 Operator 提问） | 命令输出**不保证是 UTF-8**（locale / Windows 代码页 / 二进制），而 JSON 只能承载文本 ⇒ 非 UTF-8 字节变 U+FFFD。含实测、已修缺陷（流起点对齐，`22231ff`）与残留、编码自动识别/转码的取舍（L0/L1/L2）与 4 项待决策 |
 
-> **待补**：`tool-description-review.md` 未写明所评审的 **gtsp 版本 / 提交**（只写了日期与工具范围）。日后要判断「哪些问题已被修复」会缺依据，建议作者补一行版本号或 sha。
+> **状态（2026-11-15 复核）**：`tool-description-review.md` 原先「未写所评审版本」的问题**已补**——李哥加了「版本锚点与生效边界」节（基线 gtsp v0.5.0 / `0a4e39d8`）；gtsp 开发随后加了「逐条复核」节（基线 `dad259f`），结论是 6 条里 **2 条已修**（#3 部分、#5 完全）、**4 条仍成立**（#1/#2/#4/#6）。
 
 ## 历史记录（未归类）
 

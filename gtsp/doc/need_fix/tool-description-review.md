@@ -3,8 +3,73 @@
 > **评审人**：李哥（测试工程师）
 > **撰写日期**：2026-11-15
 > **评审对象**：**运行时实际注入给 Agent 的 tool description 字符串**（4 个工具：`execute_bash` / `process_list` / `process_output` / `process_stop`）
-> **评审方法**：只以「Agent 手里拿到的描述文本」+「实机调用拿到的返回体」为证据，不参考实现代码。理由：Agent 做决策时**看不到代码**，描述里没写的信息 = 对使用者不存在。设计文档写了但描述没写，等于没写。
+> **评审方法**：以「Agent 手里拿到的描述文本」+「实机调用拿到的返回体」为主要证据；**不以代码实现作为「描述是否缺失」的判据**（描述缺不缺，逐字看描述即可）。少数语义（如返回体字段名、状态取值）来自实现阅读，已在 §1.1 逐条标注证据来源，避免把「读实现所得」当成「已实测」。理由：Agent 做决策时**看不到代码**，描述里没写的信息 = 对使用者不存在。设计文档写了但描述没写，等于没写。
+> **评审基线**：gtsp **v0.5.0**（tag `gtsp-v0.5.0` / commit `0a4e39d8`，2026-11-14）
 > **关联文档**：[`tool_spec/execute_bash.md`](../tool_spec/execute_bash.md)（工具规格）、[`child-process-reclamation.md`](../design/child-process-reclamation.md)（子进程回收机制）、[`process-output-optimization.md`](../design/process-output-optimization.md)（输出截断优化，本次不展开）
+
+---
+
+## 版本锚点与生效边界（必读）
+
+### 为什么必须有这一节
+
+这份评审的对象是**运行时注入给 Agent 的 tool description 字符串**，而 descriptions 是**编译进 gtsp 二进制**的。于是有两个容易被忽略的推论：
+
+1. **仓库里把描述改了 ≠ Agent 看到的行为变了**——必须重新出二进制、由 Togobot 换上新的 gtsp，描述才真正生效。判断「这条修了没」时若只看仓库 diff，会得出错误结论。
+2. **不能只写「某天的构建」**——要能回答「当时看到的是哪一版描述」，就必须把版本号钉死。
+
+### 评审基线
+
+| 项 | 值 |
+|---|---|
+| gtsp 版本 | **v0.5.0**（`gtsp-darwin-arm64 --version` → `v0.5.0`） |
+| 源码锚点 | tag `gtsp-v0.5.0` → commit `0a4e39d8`（2026-11-14 22:51，"chore(gtsp): bump version to v0.5.0"） |
+| 评审时刻仓库 HEAD | 同 `0a4e39d8`（2026-11-15 12:17 撰写时确认）⇒ **描述与源码零漂移**，并非「某天的构建」 |
+| 实际评审的二进制 | `Togobot.app/Contents/Resources/backend/_internal/assets/execute/gtsp/gtsp-darwin-arm64`，mtime 2026-11-15 11:33 |
+| 该二进制 sha256 | `54880c88efc53c6af4ed5ae93ef30d7ca4a506c216776222b30106f219eba873` |
+
+### 坑：sha256 不能跨环境当锚点
+
+仓库侧同名资产（`assets/execute/gtsp/gtsp-darwin-arm64`）同为 v0.5.0，但 sha256 是 `21988e90…`，与 app 内那份**不同**——app 内的可执行文件被重签过名。用 `otool -l` 比 `__text` 段可确认是同一份代码：两边 `addr 0x100001000` / `size 0x2a8604` / `offset 4096` 完全一致。
+
+⇒ **内容身份要分两层**：「代码身份」（版本号 / 段布局）与「分发产物身份」（sha256）不能互替。跨环境比对只认版本号；同一环境内比对二进制才用 sha256。
+
+### 哪些已修、从哪个版本起生效
+
+截至 2026-11-15 16:40（以 `git log` 为准），v0.5.0 之后已有 13 个提交，其中两笔标题显示已按本评审同步：
+- `121b9c1 docs(gtsp): sync spec/tools with P1 process_output/execute_bash behavior`
+- `17dea1d docs(gtsp): fix two spec inaccuracies found in P2 review`
+
+**注意**：上述两笔只动仓库文档/源码；本评审所依据的二进制仍是 v0.5.0，故 §2 指出的问题在 **v0.5.0 的 Agent 视角下依然成立**。这两笔具体覆盖了哪几条，本文未逐条核对——需要确认时应对照当时的 Description 字符串原文，而不是看提交标题。
+
+### 事后核对方法
+
+```bash
+"<path>/gtsp-darwin-arm64" --version      # 版本号：唯一稳定锚点
+shasum -a 256 "<path>/gtsp-darwin-arm64"  # 仅在明确同一分发链路内可比
+```
+
+---
+
+## 逐条复核：6 条里哪些已修（补于 2026-11-15）
+
+> **复核人**：gtsp 开发 ｜ **复核基线**：`dad259f`（2026-11-15 16:37）｜ **对照基线**：`0a4e39d8`（v0.5.0，即李哥评审的那一版）
+> **方法**：本节就是上一节那句「需要确认时应对照当时的 Description 字符串原文」的落实——不看提交标题，直接把四个 `*Schema.Description` **运行时打印出来**（临时 `go run` 读 `tools.ExecuteBashSchema.Description` 等，跑完即删，未入库），再与 v0.5.0 的描述原文逐字 diff。
+> **结论**：**2 条已修**（#3 部分修、#5 完全修）、**4 条原样成立**（#1 / #2 / #4 / #6）。李哥原文「描述缺什么」的判断不作改动，本节只加状态；理由见每节标题下的「复核」行。
+
+| # | 工具 | 严重度 | 现状 | 依据（v0.5.0 → `dad259f`） |
+|---|---|---|---|---|
+| 1 | `execute_bash` | **P0** | **仍成立（未修）** | 期间该描述只动了两处（截断行、`stdout_offset/stderr_offset` 行），**leftover 那段逐字节未变**；全文 `process group` 只出现于模式 1 的 `kills the process group`，**检测单位仍未披露** |
+| 2 | `process_list` | P1 | **仍成立（未修）** | 描述与基线**逐字节相同**（`git diff 0a4e39d8 dad259f -- gtsp/src/tools/process_list.go` 为空）；能力侧 `leftover` 取值与「已完成无残留被过滤」仍在（`process_list.go:42,48`） |
+| 3 | `process_output` | P1 | **部分已修**：b、c 已修，a 仍缺 | b、c 已写入（见 §2.3 复核行）；a 仍缺——描述中 **`truncated` / `leftover_processes` 两个字段名命中数均为 0**（只有 `truncation limit` 这类叙述，没有字段名） |
+| 4 | `process_stop` | P1 | **仍成立（未修）** | 描述与基线**逐字节相同**；§2.4 列的三件事实现侧都还在（`process_stop.go:52-66`、`:79-84`、`:43-49`） |
+| 5 | `execute_bash` | P1 | **已修（且优于原建议）** | `5e46f2b` 把 `Automatically truncates …` 整句换成 `keeping BOTH the head and the tail (Head+Tail)`——**头尾都保**，不是 §2.5 建议的「保头丢尾」。⇒ §2.5 的建议文案本身已过时 |
+| 6 | `execute_bash` | P2 | **仍成立（未修）** | `pal.PathNotes()` 未被本轮改动（`pal/shell_desc_unix.go:16`、`pal/shell_desc_windows.go:28`），`(execute_bash does not change it per call)` 原文仍在 |
+
+**附带发现（不在 6 条内，但原文已过时）**：
+
+1. **§2.3 的「描述现状」引用已不存在**：`- Returns stdout, stderr, running status, and exit code when complete` 这行在 `5e46f2b` 被整段重写，现描述已无「Returns …」句式。
+2. **§3「值得保留的写法」第 3 条已失效**：该条夸的 `process_id is only returned when a process is promoted to background …, not for processes that complete synchronously` **不再成立**——`5e46f2b` 之后，同步运行退出但留下后代也会**交接** `process_id`（现描述：`or a sync run that exited but left descendants alive (handover)`）。它从「值得保留」变成「已修」。
 
 ---
 
@@ -46,6 +111,8 @@
 
 ### 2.1 【P0】`execute_bash`：进程组语义缺失（本次事故直接成因）
 
+> **复核（`dad259f`）**：**仍未修**。本节引用的描述段落逐字节未变；`process group` 全文仅出现于模式 1 的 `kills the process group`（那是 kill 单位，不是检测单位）。
+
 **描述现状**（原文）：
 ```
 - Synchronous mode leftover descendants: if descendant processes forked by the command (e.g., '&' or daemons)
@@ -75,6 +142,8 @@
 
 ### 2.2 【P1】`process_list`：状态值域缺失 + 过滤规则与「Lists all」不符
 
+> **复核（`dad259f`）**：**仍未修**。该工具描述自 v0.5.0 起**一字未动**（diff 为空），问题 a、b 都还在。
+
 **描述现状**：
 ```
 - Lists all currently running background processes started by execute_bash
@@ -97,6 +166,8 @@
 ---
 
 ### 2.3 【P1】`process_output`：两个返回字段缺失 + 两处反直觉语义未说明
+
+> **复核（`dad259f`）**：**部分已修**。问题 b、c 已在 `5e46f2b` 写入描述：`running is true while the main process lives OR surviving descendants exist; exit_code is null in both those cases`、`block:true (default) waits for the process (and any surviving descendants) to finish`。问题 a **仍缺**：`truncated` 与 `leftover_processes` 两个字段名在描述里命中数均为 0。另：本节「描述现状」引用的那句已被整段重写（见文首复核表「附带发现 1」）。
 
 **描述现状（Returns 部分）**：
 ```
@@ -123,6 +194,8 @@
 ---
 
 ### 2.4 【P1】`process_stop`：leftover 情形下「no-op」的说法不成立
+
+> **复核（`dad259f`）**：**仍未修**。描述与 v0.5.0 逐字节相同；本节列的三件事实现侧都还在——已退出但有残留 ⇒ `Kill()` + 最多等 2s（`process_stop.go:52-66`）、超时 `success:false`（`:79-84`）、not found 走返回体 `success:false`（`:43-49`）。
 
 **描述现状**：
 ```
@@ -159,6 +232,8 @@
 
 ### 2.5 【P1】`execute_bash`：截断只写「会自动截断」，未说是保头丢尾
 
+> **复核（`dad259f`）**：**已修，且优于本节建议**。`5e46f2b` 改为 Head+Tail：`Output is capped per stream at 1000 lines / 50 KB, keeping BOTH the head and the tail (Head+Tail): the head keeps context and the tail keeps the failure/result`。本节标题「保头丢尾」与建议文案 `KEEPS THE HEAD and DROPS THE TAIL` **均已过时**，保留作评审记录，勿据此实现。
+
 **描述现状**：
 ```
 - Automatically truncates large outputs to protect context window
@@ -178,6 +253,8 @@
 ---
 
 ### 2.6 【P2】`execute_bash`：工作目录那句话的真实重点没说清
+
+> **复核（`dad259f`）**：**仍未修**。该句由 `pal.PathNotes()` 提供，本轮未改动，`(execute_bash does not change it per call)` 原文仍在。
 
 **描述现状**：
 ```
@@ -199,7 +276,7 @@
 
 - `process_output.timeout` 那条是全篇最好的描述：`Defaults to 30000, max 60000. Note: actual effective wait time is also limited by the client's transport request timeout (typically 30-65s); if you need to wait longer, use block:false and poll repeatedly.` —— 把「参数上限受外部约束」这个隐性事实写明了，我照着用没踩坑。
 - `execute_bash` 三种执行模式的分段 + 「`run_in_background:true` 忽略 `task_timeout`/`timeout_action`」写得清楚，无歧义。
-- `process_output` 里「`process_id` 只在转后台时返回，同步完成的命令没有」这条边界写得很好，直接避免了一次「拿不存在的 id 去查」。
+- `process_output` 里「`process_id` 只在转后台时返回，同步完成的命令没有」这条边界写得很好，直接避免了一次「拿不存在的 id 去查」。 —— **⚠ 已过时（复核基线 `dad259f`）**：`5e46f2b` 之后同步运行退出但留下后代也会交接 `process_id`，这条边界已不成立，见文首复核表「附带发现 2」。
 - `task_timeout` 的「设为 0 表示用默认值，不是 0=立即后台」——括号里的澄清正是防止误用的范本。
 
 ---

@@ -22,6 +22,7 @@
 | 文档 | 内容 |
 |---|---|
 | [`tool-description-review.md`](./need_fix/tool-description-review.md) | 以 Agent 视角评审运行时注入的 tool description：哪些行为「规格里有、注入给 Agent 的描述里没有」，属对外契约披露缺失 |
+| [`encoding-and-binary-output.md`](./need_fix/encoding-and-binary-output.md) | 命令输出**不保证是 UTF-8**（locale / Windows 代码页 / 二进制），而 JSON 只能承载文本 ⇒ 非 UTF-8 字节变 U+FFFD。含实测、已修缺陷（流起点对齐）与残留、编码自动识别/转码的取舍（L0/L1/L2）与 4 项待决策 |
 
 ## 历史记录（未归类）
 

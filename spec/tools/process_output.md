@@ -22,7 +22,7 @@ A command that completes synchronously **without** surviving descendants produce
 
 - Process IDs are opaque strings (shape `proc_1`; never parse them) and are only valid while the TSP server session is active. They are lost on server restart.
 - `GlobalProcessRegistry.Get` does **not** validate the session, so any client that knows an ID can read it.
-- A reaper runs every 5 minutes and removes entries that have finished **and** have no surviving descendants for more than 30 minutes. Entries with live descendants are never auto-killed or auto-removed.
+- A reaper runs every 5 minutes and removes entries whose **main shell exited more than 30 minutes ago** *and* that currently have **no surviving descendants** (`gtsp/src/api/process.go:674-704`). The 30-minute clock starts when the **main shell** exits (`doneAt`, set at `cmd.Wait()` return, `:597`) — **not** when the last descendant dies. Consequence: an entry whose descendants outlive the main shell by 40 minutes is removed on the **very next tick** after they exit, with no further wait. Entries with live descendants are never auto-killed or auto-removed.
 - When a WebSocket session closes, `KillSession` kills and removes that session's processes.
 
 ## Request
@@ -140,7 +140,8 @@ Markers you may see inside `stdout` / `stderr`:
 | Marker | Meaning |
 |---|---|
 | `... (N bytes omitted) ...` | Head+Tail truncation dropped N bytes in the middle (only produced by `execute_bash`). |
-| `... (N bytes earlier output evicted by buffer) ...` | The stream ring buffer overwrote N oldest bytes; also sets `*_overflow`. |
+| `... (N bytes earlier output evicted by buffer) ...` | Fast path: the whole retained range fits the budget, but the ring buffer had already overwritten older bytes. **N is the byte count skipped at the start of the retained range for UTF-8 alignment** (`api/process.go:303`), so it is **usually `0`** (only **1–3** when the retained range happens to start mid-character) — treat `*_overflow: true` as the authoritative "nothing older is retained" signal, not N. |
+| `... (N bytes earlier output evicted by buffer; M bytes omitted) ...` | **Both at once**: buffer overflowed **and** Head+Tail dropped a middle chunk. Same caveat on `N` (usually `0`); `M` and `*_overflow` carry the real information. |
 | `... (N bytes earlier output omitted/evicted) ...` | Tail mode: N earlier bytes are not included (evicted and/or beyond the line/byte window). |
 | `... (N bytes evicted by buffer before this point) ...` | Your `stdout_offset` was already overwritten (`*_offset_expired: true`). |
 | `... (N bytes skipped for UTF-8 alignment) ...` | The requested offset was mid-character; it was advanced to the next character boundary. |

@@ -71,6 +71,7 @@ stdout 是 fd 1，内核只搬字节。编码由**程序 + locale 环境**决定
 ### 3.1 残留（pre-existing，未修）
 
 1. **前导非法 run 超过一页时仍会丢**：prefix 第一页读完（约 50 KB）后 `next` 落在 run 中间，下一页 `alignCeil(offset > 0)` 把 run 剩余整段跳过。实测（`abc` + 10×`\270` + `defg`，小窗口）会丢 4–7 B；生产中页预算 50944 B，故需要 **> 50 KB 的连续 continuation 字节**才可达。**新旧代码读数逐条相同**（skip 7/6/7/6/4）⇒ 不是流起点修复引入的。
+   **只在显式分页读路径可见**（`process_output` 带 `stdout_offset` 的翻页，或 tail 分页）；同步 `execute_bash` 的 Head+Tail 一次取整段时从 `start=0` 读起、不做起点对齐，因此不体现为「跳过」（那里丢中段由 `N bytes omitted` marker 记账，属另一条路径）。
 2. **非法字节在流中间时**：跨页跳过的是「该 run 在页边界之后的剩余部分」，实际通常 1–3 B（页 50944 B）。与「合法 UTF-8 分页必须 rune 对齐」互斥，只能文档化。
 3. **非 UTF-8 文本（如 GBK）仍然是乱码**：buffer 不再丢字节，但 JSON 会把 GBK 双字节变成两个 U+FFFD，用户看到满屏 `�`。
 4. **二进制输出语义上不适合走 stdout**：正确做法是写文件 + `read_file`，或 base64。

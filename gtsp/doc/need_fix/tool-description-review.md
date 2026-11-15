@@ -325,10 +325,13 @@ shasum -a 256 "<path>/gtsp-darwin-arm64"  # 仅在明确同一分发链路内可
 | `message` | eb / ps | 1 | — | — | **0** |
 | `started_at` | pl | — | — | **0** | — |
 | `stdout_offset` / `stderr_offset` | eb / po | 1 / 1 | 3 / 3 | — | — |
+| `stdout` | eb / po | 1（非字段列举，见下注） | 1（同上） | — | — |
+
+**口径提醒：计数 >0 ≠ 已披露。** 本表的判据是「是否以**返回键**身份被说明」，不是单纯出现次数——`stdout` 在两个工具各出现 1 次，但都落在 `len(stdout)` 这类用法警告里（"Never derive a cursor from len(stdout)"），从未列举为返回字段；`processes` 在 `process_list` 出现 2 次是英文词义（"background processes"），也不是外层返回键。按此判据：`stderr` / `truncated` / `*_offset_expired`（0 次）是真缺口，`stdout` 属「出现了但没当字段讲」的半缺口。**这也是只用 `grep -c` 数行数会踩的坑**——行数、出现次数、字段身份是三个不同的量。
 
 结论：**`stderr`、`truncated`、`stdout_offset_expired`/`stderr_offset_expired` 在四段描述里全部为 0**；`stderr` 这条尤其反常——v0.5.0 的 `process_output` 描述原本有 `Returns stdout, stderr, running status, and exit code when complete` 一句，重写后该句被删、基础字段反而无人列举。
 
-> 与开发提供表的差异（不影响结论）：`tail_lines` 我测为 3 次（入参名 + `do not combine tail_lines` 提示），其表为 2；其余一致。
+> 与开发提供表的差异（已由双方核对确认，不影响结论）：`tail_lines` 我测为 3 次（入参名 + `do not combine tail_lines` 提示两处），其表为 2——他用 `grep -c` 数的是**行数**，其中一行含两次；后续双方统一用 `grep -ow` + 声明口径（词边界 / 仅 Description 范围 / 是否含入参）。
 
 ### 6.3 N2 的第四个成因：重写描述时丢失了原有的字段列举句
 

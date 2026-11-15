@@ -12,7 +12,7 @@ TeamAgent（host）正在推进 **Agent 多模态请求** 能力（V25）：让 
 - `grep_search` / `glob` 明确跳过 png/jpg 等媒体文件。
 - TSP 协议的工具结果只支持 JSON（`ToolResult.output: Dict | List | str`），没有二进制通道。
 
-> 注：`gtsp/doc/design/tool_spec/read_file.md` 的功能目标中已预留"支持读取文本、Markdown、JSON 以及**图片/PDF**（如果底层模型支持多模态）"的方向，本需求即该方向的落地。
+> 注：`gtsp/doc/tool_spec/read_file.md` 的功能目标中已预留"支持读取文本、Markdown、JSON 以及**图片/PDF**（如果底层模型支持多模态）"的方向，本需求即该方向的落地。
 
 ### 1.2 目标
 
@@ -129,7 +129,7 @@ host 侧已确定的多模态发送约定：
 - `gtsp/src/api/dispatcher.go`（响应日志对超长行截断，避免 base64 写满日志）
 - `spec/tools/read_image.md`（协议工具定义文档）
 - `spec/tools/README.md`（工具索引登记）
-- `gtsp/doc/design/tool_spec/read_image.md`（工具规格文档）
+- `gtsp/doc/tool_spec/read_image.md`（工具规格文档）
 - 相关单测（含 png/jpeg/gif/webp/bmp 各格式 fixture 小图）
 
 ### TeamAgent 仓库（host 侧）

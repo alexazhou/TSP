@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 )
 
-// ReadFileParams defines input for read_file according to doc/design/tool_spec/read_file.md
+// ReadFileParams defines input for read_file according to doc/tool_spec/read_file.md
 type ReadFileParams struct {
 	Path      string `json:"file_path"`
 	StartLine int    `json:"start_line,omitempty"` // 1-based index

@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// GrepSearchParams defines input for grep_search according to doc/design/tool_spec/grep_search.md
+// GrepSearchParams defines input for grep_search according to doc/tool_spec/grep_search.md
 type GrepSearchParams struct {
 	Pattern           string `json:"pattern"`
 	Path              string `json:"path,omitempty"`

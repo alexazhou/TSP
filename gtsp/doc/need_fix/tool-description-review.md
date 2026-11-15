@@ -4,7 +4,7 @@
 > **撰写日期**：2026-11-15
 > **评审对象**：**运行时实际注入给 Agent 的 tool description 字符串**（4 个工具：`execute_bash` / `process_list` / `process_output` / `process_stop`）
 > **评审方法**：只以「Agent 手里拿到的描述文本」+「实机调用拿到的返回体」为证据，不参考实现代码。理由：Agent 做决策时**看不到代码**，描述里没写的信息 = 对使用者不存在。设计文档写了但描述没写，等于没写。
-> **关联文档**：[`tool_spec/execute_bash.md`](../design/tool_spec/execute_bash.md)（工具规格）、[`child-process-reclamation.md`](../design/child-process-reclamation.md)（子进程回收机制）、[`process-output-optimization.md`](../design/process-output-optimization.md)（输出截断优化，本次不展开）
+> **关联文档**：[`tool_spec/execute_bash.md`](../tool_spec/execute_bash.md)（工具规格）、[`child-process-reclamation.md`](../design/child-process-reclamation.md)（子进程回收机制）、[`process-output-optimization.md`](../design/process-output-optimization.md)（输出截断优化，本次不展开）
 
 ---
 
@@ -61,7 +61,7 @@
 - 结果：后代逃出 gtsp 的进程组探测 ⇒ `leftover_processes` 不报、`process_stop` 也杀不到 ⇒ 我据此写下「gtsp 清理失效」的结论，写了半天报告，实际是**测试形态问题**。
 - 同一份探针改成 `sleep 60 &`（不套 timeout）后，回收与告知**全部正常**：`process_stop` 整组 SIGKILL 后残留 0（含 `PPID=1` 的孤儿）；同步模式返回 `leftover_processes.alive=1` + `message`；异步模式 `process_list` 报 `status: "leftover"`。
 
-**注意**：设计文档 [`tool_spec/execute_bash.md`](../design/tool_spec/execute_bash.md) §5.2 已经写了「探测不到逃逸进程：后代若主动 `setsid` 脱离进程组，报告不出也无法组杀」——**规格里有，注入给 Agent 的描述里没有**。这正是本条的价值：不是设计缺失，是对外契约披露缺失。
+**注意**：设计文档 [`tool_spec/execute_bash.md`](../tool_spec/execute_bash.md) §5.2 已经写了「探测不到逃逸进程：后代若主动 `setsid` 脱离进程组，报告不出也无法组杀」——**规格里有，注入给 Agent 的描述里没有**。这正是本条的价值：不是设计缺失，是对外契约披露缺失。
 
 **建议补（可直接采用）**：
 ```
@@ -82,7 +82,7 @@
 - Use this to check what background processes are active before calling process_output or process_stop
 ```
 
-**问题 a**：`status` 有两个取值 `running` / `leftover`，描述只字未提 `leftover`。我实测拿到 `status: "leftover"` 时，只能反推它的含义（主体已退出、残留仍在）。这是**新增能力没有对外披露**（规格 [`tool_spec/execute_bash.md`](../design/tool_spec/execute_bash.md) §5 已覆盖 leftover 报告，但 `process_list` 这一侧的状态语义没写）。
+**问题 a**：`status` 有两个取值 `running` / `leftover`，描述只字未提 `leftover`。我实测拿到 `status: "leftover"` 时，只能反推它的含义（主体已退出、残留仍在）。这是**新增能力没有对外披露**（规格 [`tool_spec/execute_bash.md`](../tool_spec/execute_bash.md) §5 已覆盖 leftover 报告，但 `process_list` 这一侧的状态语义没写）。
 
 **问题 b**：「Lists all currently running」不准确——主体已退出、无残留的条目**会被跳过**，即「列出仍在跑的 + 主体已退出但有残留的」，不是全部。
 

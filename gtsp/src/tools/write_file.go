@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-// WriteFileParams defines input for write_file according to doc/design/tool_spec/write_file.md
+// WriteFileParams defines input for write_file according to doc/tool_spec/write_file.md
 type WriteFileParams struct {
 	Path     string `json:"file_path"`
 	Content  string `json:"content"`

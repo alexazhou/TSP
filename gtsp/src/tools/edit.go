@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// EditParams defines input for edit according to doc/design/tool_spec/edit.md
+// EditParams defines input for edit according to doc/tool_spec/edit.md
 type EditParams struct {
 	FilePath      string `json:"file_path"`
 	OldString     string `json:"old_string"`

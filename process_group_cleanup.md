@@ -73,7 +73,7 @@ case <-bp.WaitChan():
 - **成员枚举（平台差异，评审第五轮细化）**：
   - **Unix（macOS/Linux）走慢路径 `ps` 子进程**：枚举只在「主进程已退出且 `kill(-pgid, 0)` 探测命中」的异常路径触发（正常命令毫秒级短路返回），此时直接执行 `ps -ax -o pid=,ppid=,pgid=,state=,args=` 按 pgid 过滤（排除 `state == Z` 僵尸）——~20 行纯 Go、耗时 ~3ms，且跨平台拿到**完整带参数的命令行**。不走 sysctl 的原因：macOS `kinfo_proc` 只有 16 字节截断进程名 `p_comm`，完整命令行需逐 PID 调 `KERN_PROCARGS2` 解析，纯 Go 实现晦涩且受架构对齐影响，不值得。
   - **Windows 两段拼装**：`QueryInformationJobObject(JobObjectBasicProcessIdList)` 只给 PID 数组，拿到集合后调一次 `CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS)` + `Process32First/Next`（<1ms）补齐 `th32ParentProcessID`（ppid）与 `szExeFile`（命令名），拼出完整树。
-- **结构化报告 `leftover_processes`**：以执行的 shell 为根的进程树快照（shell 自身 alive=false），存活后代按 ppid 挂到对应父节点；ppid 不在快照集合内的（祖先已死）挂到根下。字段定义与示例见工具规格 `gtsp/doc/design/tool_spec/execute_bash.md` §5。
+- **结构化报告 `leftover_processes`**：以执行的 shell 为根的进程树快照（shell 自身 alive=false），存活后代按 ppid 挂到对应父节点；ppid 不在快照集合内的（祖先已死）挂到根下。字段定义与示例见工具规格 `gtsp/doc/tool_spec/execute_bash.md` §5。
 - **移交复用现有工具**：Register 后 Agent 可直接用 `process_stop`（杀整组，依赖 3.4 的短路修复）/ `process_output` 查看输出，`ExecuteBashResult` 新增可选 `process_id`、`leftover_processes` 字段承载编号与进程树。
 - **快照语义**：`leftover_processes` 是返回时刻的一次性快照，存在固有竞态（快照后进程可能退出/新起）；Agent 需要最新状态时用 `process_output` 重新拉取（同样返回刷新后的树），或直接 `process_stop`（幂等，快照过期无碍）。
 - **Register 使进程进入注册表视野**（原设计中同步路径不注册、`KillAll`/`process_stop`/`process_list` 都扫不到——修订后移交的 survivor 可被 Agent 与退出清理管理，见下）。
@@ -241,7 +241,7 @@ gtsp 被硬杀（kill -9 / 崩溃）时，信号处理器不执行，现有三�
 - 同步模式：命令退出时若其 fork 的后代进程仍在运行（含 `&`、daemon），**不会自动终止**——返回值将携带 `process_id` 与提示，由 Agent 自行 `process_stop` 终止、`process_output` 查看输出；不处置则一直运行，直到 gtsp 退出统一清理；
 - 预期长驻的任务（启动服务、监听端口等）优先使用 `run_in_background: true`，可直接获得 process_id 且不受同步移交语义影响。
 
-同步更新 `gtsp/doc/design/tool_spec/execute_bash.md`。
+同步更新 `gtsp/doc/tool_spec/execute_bash.md`。
 
 **可选后续（不在首版）**：`process_stop` / 超时 kill 从直接 SIGKILL 升级为 SIGTERM → 100–200ms 宽限 → SIGKILL，避免构建工具（go build、git 等）被强杀留下锁文件。
 

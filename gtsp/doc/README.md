@@ -1,8 +1,8 @@
 # gtsp 文档
 
-两份：`design/` 是**设计与规格**（系统该怎么工作），`need_fix/` 是**待修问题**（现状哪里不对、要怎么改）。
+三部分：`design/` 是**系统设计**（系统该怎么工作），`tool_spec/` 是**工具规格**（每个工具对外的输入/行为/输出约定），`need_fix/` 是**待修问题**（现状哪里不对、要怎么改）。
 
-## design/ — 设计与规格
+## design/ — 系统设计
 
 | 文档 | 内容 |
 |---|---|
@@ -10,9 +10,12 @@
 | [`child-process-reclamation.md`](./design/child-process-reclamation.md) | 子进程回收机制（进程组、handover、残留上报、reaper） |
 | [`windows-busybox-integration.md`](./design/windows-busybox-integration.md) | Windows 平台集成 busybox 与子进程自动退出（v0.4.19 已发布；Job Object 未实施、作为后备方案保留） |
 | [`e2e-testing-design.md`](./design/e2e-testing-design.md) | 端到端测试设计（含临时目录/文件清理约定） |
-| [`tool_spec/`](./design/tool_spec/) | 各工具规格：`execute_bash` / `read_file` / `write_file` / `edit` / `glob` / `grep_search` / `list_dir` / `read_image` |
 
-> **注意**：对外契约的权威来源是 [`spec/`](../../spec/) 下的协议与工具规范；`design/tool_spec/` 是实现侧的规格说明（更详细、含内部设计取舍）。
+## tool_spec/ — 工具规格
+
+`execute_bash` / `read_file` / `write_file` / `edit` / `glob` / `grep_search` / `list_dir` / `read_image`，共 8 份。
+
+> **权威来源**：对外契约以 [`spec/`](../../spec/) 下的协议与工具规范为准；`tool_spec/` 是实现侧的规格说明，更详细、并记录内部设计取舍。
 
 ## need_fix/ — 待修问题
 
